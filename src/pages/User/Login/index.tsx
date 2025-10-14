@@ -396,6 +396,9 @@ const Login: React.FC = () => {
               localStorage.setItem('token', response.token);
               localStorage.setItem('userId', response.id?.toString() || '');
               localStorage.setItem('userRole', response.role || '');
+              if (response.username || qqData.userInfo?.nickname) {
+                localStorage.setItem('username', response.username || qqData.userInfo.nickname || '');
+              }
             }
 
             setUserLoginState({
@@ -482,6 +485,7 @@ const Login: React.FC = () => {
               localStorage.setItem('token', response.token);
               localStorage.setItem('userId', response.id?.toString() || '');
               localStorage.setItem('userRole', response.role || '');
+              localStorage.setItem('username', response.username || '微信用户');
             }
 
             setUserLoginState({
@@ -568,6 +572,7 @@ const Login: React.FC = () => {
               localStorage.setItem('token', response.token);
               localStorage.setItem('userId', response.id?.toString() || '');
               localStorage.setItem('userRole', response.role || '');
+              localStorage.setItem('username', response.username || '支付宝用户');
             }
 
             setUserLoginState({
@@ -649,6 +654,9 @@ const Login: React.FC = () => {
         localStorage.setItem('token', response.token);
         localStorage.setItem('userId', response.id?.toString() || '');
         localStorage.setItem('userRole', response.role || '');
+        if (response.username || values.username) {
+          localStorage.setItem('username', response.username || values.username || '');
+        }
       }
 
       setUserLoginState({

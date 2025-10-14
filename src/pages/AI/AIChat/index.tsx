@@ -30,9 +30,11 @@ interface CodeProps {
 interface AIChatProps {
   embedded?: boolean;
   hasInitialized?: boolean;
+  externalGreeting?: string;
+  greetingSignal?: number;
 }
 
-const AIChat: React.FC<AIChatProps> = ({ embedded, hasInitialized }) => {
+const AIChat: React.FC<AIChatProps> = ({ embedded, hasInitialized, externalGreeting, greetingSignal }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -90,6 +92,45 @@ const AIChat: React.FC<AIChatProps> = ({ embedded, hasInitialized }) => {
       }, 50); // 每50ms显示一个字符
     }
   }, [hasInitialized, sessionId]);
+
+  // 外部问候触发（悬浮图标 hover 时）
+  useEffect(() => {
+    if (!greetingSignal || !externalGreeting) return;
+    const greetText = externalGreeting;
+    const baseMessage: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    };
+
+    setIsTyping(true);
+    setMessages(prev => [...prev, baseMessage]);
+
+    let currentIndex = 0;
+    const typeInterval = setInterval(() => {
+      currentIndex += 1;
+      setMessages(prev => {
+        const next = [...prev];
+        const lastIndex = next.length - 1;
+        if (lastIndex >= 0) {
+          next[lastIndex] = {
+            ...next[lastIndex],
+            content: greetText.substring(0, Math.min(currentIndex, greetText.length)),
+          };
+        }
+        return next;
+      });
+
+      if (currentIndex >= greetText.length) {
+        clearInterval(typeInterval);
+        setIsTyping(false);
+      }
+    }, 40);
+
+    return () => {
+      setIsTyping(false);
+    };
+  }, [greetingSignal, externalGreeting]);
 
   useEffect(() => {
     // scrollToBottom();
@@ -270,13 +311,14 @@ const AIChat: React.FC<AIChatProps> = ({ embedded, hasInitialized }) => {
                       '👤'
                     ) : (
                       <img 
-                        src='https://breed-1258140596.cos.ap-shanghai.myqcloud.com/Breeding%20Platform/ai%E5%8A%A9%E6%89%8B.png'
+                        src='https://breed-1258140596.cos.ap-shanghai.myqcloud.com/Breeding%20Platform/3D%20%E5%B0%8F%E5%9F%8B%20.png'
                         alt="育小星"
                         style={{
-                          width: '32px',
-                          height: '32px',
+                          width: '42px',
+                          height: '42px',
                           objectFit: 'contain',
-                          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                          filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.25))',
+                          transform: 'perspective(900px) rotateX(4deg) rotateY(4deg)',
                         }}
                       />
                     )}

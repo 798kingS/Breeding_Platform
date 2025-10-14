@@ -28,14 +28,29 @@ export async function getInitialState(): Promise<{
       });
       return msg.data;
     } catch (error) {
-      history.push(loginPath);
+      // 刷新时不自动跳转到登录页，返回 undefined 让用户保持在当前页面
+      // history.push(loginPath);
     }
     return undefined;
   };
   // 如果不是登录页面，执行
   const { location } = history;
   if (location.pathname !== loginPath) {
-    const currentUser = await fetchUserInfo();
+    let currentUser = await fetchUserInfo();
+    // 刷新时如果接口异常但本地仍有 token，则用本地信息构造一个最小用户，避免被判定为未登录
+    if (!currentUser) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const userRole = localStorage.getItem('userRole') || 'user';
+        const userId = localStorage.getItem('userId') || 'unknown';
+        currentUser = {
+          name: localStorage.getItem('username') || '用户',
+          userid: userId,
+          access: userRole,
+          avatar: 'https://breed-1258140596.cos.ap-shanghai.myqcloud.com/%E7%A7%8D%E8%B4%A8%E8%B5%84%E6%BA%90/tx.png',
+        } as unknown as API.CurrentUser;
+      }
+    }
     return {
       fetchUserInfo,
       currentUser,
@@ -62,7 +77,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     footerRender: () => <Footer />,
     onPageChange: () => {
       const { location } = history;
-      // 如果没有登录，重定向到 login
+      // 未登录且不在登录页时，跳转登录页；已登录则保持当前页
       if (!initialState?.currentUser && location.pathname !== loginPath) {
         history.push(loginPath);
       }

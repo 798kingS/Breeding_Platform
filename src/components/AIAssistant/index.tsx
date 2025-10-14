@@ -6,15 +6,22 @@ import routes from '../../../config/routes';
 
 const AIAssistant: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
+  const [position, setPosition] = useState({ x: window.innerWidth - 140, y: window.innerHeight - 150 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [hasInitialized, setHasInitialized] = useState(false);
   const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 });
   const [hasDragged, setHasDragged] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+  const [hoverText, setHoverText] = useState('');
+  const hoverFullText = '你好，我是你的专属助手小埋，请问有什么可以帮到你的？';
+  const hoverTimerRef = useRef<number | null>(null);
+  const dragResetTimerRef = useRef<number | null>(null);
+
   const buttonRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
   const location = useLocation();
+  const placeBubbleRight = position.x < window.innerWidth / 2;
 
   const displayTitle = useMemo(() => {
     const pathname = location?.pathname || '';
@@ -38,6 +45,7 @@ const AIAssistant: React.FC = () => {
   }, [location?.pathname]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setDragOffset({
@@ -49,6 +57,7 @@ const AIAssistant: React.FC = () => {
         y: e.clientY,
       });
       setHasDragged(false);
+      setIsHovering(false);
       setIsDragging(true);
     }
   };
@@ -86,19 +95,32 @@ const AIAssistant: React.FC = () => {
       const newY = e.clientY - dragOffset.y;
       
       // 限制在视窗内
-      const maxX = window.innerWidth - 80;
-      const maxY = window.innerHeight - 80;
+      const el = buttonRef.current;
+      const elW = el?.offsetWidth || 88;
+      const elH = el?.offsetHeight || 88;
+      const margin = 16;
+      const maxX = window.innerWidth - elW - margin;
+      const maxY = window.innerHeight - elH - margin;
       
       setPosition({
-        x: Math.max(0, Math.min(newX, maxX)),
-        y: Math.max(0, Math.min(newY, maxY)),
+        x: Math.max(margin, Math.min(newX, maxX)),
+        y: Math.max(margin, Math.min(newY, maxY)),
       });
     }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
-    setHasDragged(false);
+    if (dragResetTimerRef.current) {
+      window.clearTimeout(dragResetTimerRef.current);
+      dragResetTimerRef.current = null;
+    }
+    // Delay resetting hasDragged to avoid click firing immediately after a drag
+    // @ts-ignore
+    dragResetTimerRef.current = window.setTimeout(() => {
+      setHasDragged(false);
+      dragResetTimerRef.current = null;
+    }, 200);
   };
 
 	// 触摸移动与结束（使用原生事件，便于 preventDefault）
@@ -120,19 +142,31 @@ const AIAssistant: React.FC = () => {
 			const newX = touch.clientX - dragOffset.x;
 			const newY = touch.clientY - dragOffset.y;
 
-			const maxX = window.innerWidth - 80;
-			const maxY = window.innerHeight - 80;
-
+      const el = buttonRef.current;
+      const elW = el?.offsetWidth || 88;
+      const elH = el?.offsetHeight || 88;
+      const margin = 16;
+      const maxX = window.innerWidth - elW - margin;
+      const maxY = window.innerHeight - elH - margin;
 			setPosition({
-				x: Math.max(0, Math.min(newX, maxX)),
-				y: Math.max(0, Math.min(newY, maxY)),
+				x: Math.max(margin, Math.min(newX, maxX)),
+				y: Math.max(margin, Math.min(newY, maxY)),
 			});
 		}
 	};
 
 	const handleTouchEnd = () => {
 		setIsDragging(false);
-		setHasDragged(false);
+    if (dragResetTimerRef.current) {
+      window.clearTimeout(dragResetTimerRef.current);
+      dragResetTimerRef.current = null;
+    }
+    // Delay resetting hasDragged for touch as well
+    // @ts-ignore
+    dragResetTimerRef.current = window.setTimeout(() => {
+      setHasDragged(false);
+      dragResetTimerRef.current = null;
+    }, 200);
 	};
 
   useEffect(() => {
@@ -159,16 +193,10 @@ const AIAssistant: React.FC = () => {
           position: 'fixed',
           left: position.x,
           top: position.y,
-          width: 80,
-          height: 80,
-          borderRadius: '50%',
-          background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
-          boxShadow: `
-            0 8px 32px ${token.colorPrimary}40, 
-            0 0 0 1px rgba(255,255,255,0.1),
-            inset 0 2px 4px rgba(255,255,255,0.3),
-            inset 0 -2px 4px rgba(0,0,0,0.2)
-          `,
+          width: 'auto',
+          height: 'auto',
+          background: 'transparent',
+          boxShadow: 'none',
           cursor: isDragging ? 'grabbing' : 'grab',
           display: 'flex',
           alignItems: 'center',
@@ -176,32 +204,58 @@ const AIAssistant: React.FC = () => {
           zIndex: 1000,
           transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           transform: isDragging ? 'scale(1.1) translateZ(10px)' : 'scale(1) translateZ(0px)',
-          border: '3px solid rgba(255,255,255,0.2)',
-          backdropFilter: 'blur(10px)',
+          border: 'none',
+          backdropFilter: 'none',
           perspective: '1000px',
+          userSelect: 'none',
         }}
         onMouseDown={handleMouseDown}
+        onMouseMove={(e) => {
+          if (!isDragging) return;
+          const newX = e.clientX - dragOffset.x;
+          const newY = e.clientY - dragOffset.y;
+          const el = buttonRef.current;
+          const elW = el?.offsetWidth || 88;
+          const elH = el?.offsetHeight || 88;
+          const margin = 16;
+          const maxX = window.innerWidth - elW - margin;
+          const maxY = window.innerHeight - elH - margin;
+          setPosition({
+            x: Math.max(margin, Math.min(newX, maxX)),
+            y: Math.max(margin, Math.min(newY, maxY)),
+          });
+        }}
         onTouchStart={handleTouchStart}
         onMouseEnter={(e) => {
           if (!isDragging) {
             e.currentTarget.style.transform = 'scale(1.05) translateZ(5px)';
-            e.currentTarget.style.boxShadow = `
-              0 12px 40px ${token.colorPrimary}60, 
-              0 0 0 1px rgba(255,255,255,0.2),
-              inset 0 2px 4px rgba(255,255,255,0.4),
-              inset 0 -2px 4px rgba(0,0,0,0.1)
-            `;
+            e.currentTarget.style.boxShadow = 'none';
+            // 悬浮显示气泡问候
+            setIsHovering(true);
+            setHoverText('');
+            if (hoverTimerRef.current) window.clearInterval(hoverTimerRef.current);
+            let idx = 0;
+            // @ts-ignore
+            hoverTimerRef.current = window.setInterval(() => {
+              idx += 1;
+              setHoverText(hoverFullText.slice(0, idx));
+              if (idx >= hoverFullText.length && hoverTimerRef.current) {
+                window.clearInterval(hoverTimerRef.current);
+                hoverTimerRef.current = null;
+              }
+            }, 35);
           }
         }}
         onMouseLeave={(e) => {
           if (!isDragging) {
             e.currentTarget.style.transform = 'scale(1) translateZ(0px)';
-            e.currentTarget.style.boxShadow = `
-              0 8px 32px ${token.colorPrimary}40, 
-              0 0 0 1px rgba(255,255,255,0.1),
-              inset 0 2px 4px rgba(255,255,255,0.3),
-              inset 0 -2px 4px rgba(0,0,0,0.2)
-            `;
+            e.currentTarget.style.boxShadow = 'none';
+            setIsHovering(false);
+            if (hoverTimerRef.current) {
+              window.clearInterval(hoverTimerRef.current);
+              hoverTimerRef.current = null;
+            }
+            setHoverText('');
           }
         }}
         onClick={() => {
@@ -213,49 +267,100 @@ const AIAssistant: React.FC = () => {
           }
         }}
         title="育小星"
+        onDragStart={(e) => e.preventDefault()}
       >
         <div style={{
-          width: '100%',
-          height: '100%',
+          width: 'auto',
+          height: 'auto',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          transformStyle: 'preserve-3d',
+          position: 'relative',
           animation: 'bounce 2s infinite',
         }}>
+          {isHovering && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                ...(placeBubbleRight
+                  ? { left: '100%', transform: 'translateY(-50%)', marginLeft: 10 }
+                  : { right: '100%', transform: 'translateY(-50%)', marginRight: 10 }
+                ),
+                maxWidth: 'none',
+                background: 'rgba(0,0,0,0.75)',
+                color: '#fff',
+                padding: '10px 12px',
+                borderRadius: 12,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+                fontSize: 12,
+                lineHeight: 1.5,
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+                wordBreak: 'keep-all',
+                overflow: 'visible',
+                display: 'inline-flex',
+                alignItems: 'center',
+                textAlign: 'left',
+              }}
+            >
+              {hoverText}
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 6,
+                  height: 14,
+                  background: '#4fc3f7',
+                  marginLeft: 4,
+                  animation: 'blink 1s infinite',
+                  verticalAlign: 'baseline',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 0,
+                  height: 0,
+                  ...(placeBubbleRight
+                    ? { right: '100%', borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderRight: '8px solid rgba(0,0,0,0.75)' }
+                    : { left: '100%', borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '8px solid rgba(0,0,0,0.75)' }
+                  ),
+                }}
+              />
+            </div>
+          )}
           <img 
-            src='https://breed-1258140596.cos.ap-shanghai.myqcloud.com/Breeding%20Platform/ai%E5%8A%A9%E6%89%8B.png'
+            src='https://breed-1258140596.cos.ap-shanghai.myqcloud.com/Breeding%20Platform/3D%20%E5%B0%8F%E5%9F%8B%20.png'
             alt="育小星"
             style={{
-              width: '60px',
-              height: '60px',
+              width: '105px',
+              height: '105px',
               objectFit: 'contain',
-              filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3)) drop-shadow(0 0 20px rgba(255,255,255,0.2))',
-              transform: 'perspective(1000px) rotateX(5deg) rotateY(5deg)',
+              filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.35)) drop-shadow(0 0 25px rgba(0,0,0,0.15))',
+              transform: 'perspective(1200px) scale(1)',
               transition: 'all 0.3s ease',
             }}
+            draggable={false}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1.1)';
-              e.currentTarget.style.filter = 'drop-shadow(0 6px 12px rgba(0,0,0,0.4)) drop-shadow(0 0 30px rgba(255,255,255,0.3))';
+              e.currentTarget.style.transform = 'perspective(1200px) scale(1.06) translateZ(6px)';
+              e.currentTarget.style.filter = 'drop-shadow(0 14px 28px rgba(0,0,0,0.4)) drop-shadow(0 0 35px rgba(0,0,0,0.2))';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'perspective(1000px) rotateX(5deg) rotateY(5deg) scale(1)';
-              e.currentTarget.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.3)) drop-shadow(0 0 20px rgba(255,255,255,0.2))';
+              e.currentTarget.style.transform = 'perspective(1200px) scale(1) translateZ(0)';
+              e.currentTarget.style.filter = 'drop-shadow(0 10px 20px rgba(0,0,0,0.35)) drop-shadow(0 0 25px rgba(0,0,0,0.15))';
             }}
           />
         </div>
       </div>
       
       <style>{`
-        @keyframes bounce {
-          0%, 20%, 50%, 80%, 100% {
-            transform: translateY(0);
-          }
-          40% {
-            transform: translateY(-10px);
-          }
-          60% {
-            transform: translateY(-5px);
-          }
+       @keyframes float3d {
+          0%   { transform: translateZ(0) translateY(0); }
+          50%  { transform: translateZ(6px) translateY(-3px); }
+          100% { transform: translateZ(0) translateY(0); }
         }
       `}</style>
 
@@ -275,7 +380,6 @@ const AIAssistant: React.FC = () => {
           },
           body: { padding: 0 },
         }}
-        styles={{ body: { padding: 0 } }}
         destroyOnClose
       >
         <div
@@ -299,7 +403,7 @@ const AIAssistant: React.FC = () => {
             {displayTitle}
           </div>
           <div style={{ flex: 1, overflow: 'hidden', padding: 16 }}>
-            <AIChat embedded hasInitialized={hasInitialized} />
+            <AIChat embedded hasInitialized={hasInitialized} externalGreeting={hoverFullText} greetingSignal={0} />
           </div>
         </div>
       </Modal>
