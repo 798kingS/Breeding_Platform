@@ -160,6 +160,15 @@ const TableList: React.FC = () => {
   const [sowingList, setSowingList] = useState<any[]>([]);
   const [currentSowingRecord, setCurrentSowingRecord] = useState<API.RuleListItem>();
 
+  // 批量播种相关状态
+  const [batchSowingModalOpen, setBatchSowingModalOpen] = useState<boolean>(false);
+  const [batchSowingForm] = Form.useForm();
+
+  // 杂交模态框内三个表格的分页大小（受控）
+  const [hybridListPageSize, setHybridListPageSize] = useState<number>(5);
+  const [candidateListPageSize, setCandidateListPageSize] = useState<number>(5);
+  const [summaryListPageSize, setSummaryListPageSize] = useState<number>(5);
+
   const [editingKey, setEditingKey] = useState<string>('');
   const isEditing = (record: any) => record.id === editingKey;
 
@@ -519,6 +528,85 @@ const TableList: React.FC = () => {
     } catch (error) {
       hide();
       message.error('批量保存失败，请重试');
+      return false;
+    }
+  };
+  /**
+    * 处理批量播种操作
+    */
+  const handleBatchSowing = async (selectedRows: API.RuleListItem[]) => {
+    if (!selectedRows || selectedRows.length === 0) {
+      message.warning('请先选择要播种的品种');
+      return;
+    }
+    setBatchSowingModalOpen(true);
+    // 设置表单初始值
+    batchSowingForm.setFieldsValue({
+      planNumber: `PLAN-${new Date().getTime()}`,
+      defaultSowingCount: 1,
+    });
+  };
+
+  /**
+   * 批量播种提交处理
+   */
+  const handleBatchSowingSubmit = async (values: any) => {
+    if (!selectedRowsState || selectedRowsState.length === 0) {
+      message.error('未选择品种');
+      return;
+    }
+
+    try {
+      const hide = message.loading('正在批量添加播种记录...');
+
+      // 创建批量播种记录
+      const batchSowingRecords = selectedRowsState.map((record, index) => ({
+        id: `SW-BATCH-${Date.now()}-${index}`,
+        code: `${values.planNumber}-${String(index + 1).padStart(3, '0')}`,
+        seedNumber: record.seedNumber || '',
+        varietyName: record.varietyName || '',
+        sowingCount: values.defaultSowingCount || 1,
+        planNumber: values.planNumber || '',
+        createTime: new Date().toISOString(),
+      }));
+
+      // 保存到localStorage
+      const existingRecords = localStorage.getItem('sowingRecords');
+      const allRecords = existingRecords ? JSON.parse(existingRecords) : [];
+      allRecords.unshift(...batchSowingRecords);
+      localStorage.setItem('sowingRecords', JSON.stringify(allRecords));
+
+      // 提交到后端
+      try {
+        const response = await fetch('/api/seed/sow', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(batchSowingRecords),
+        });
+
+        if (!response.ok) {
+          throw new Error('提交播种记录到服务器失败');
+        }
+
+        const result = await response.json();
+        console.log('批量播种提交结果:', result);
+      } catch (apiError) {
+        console.error('提交到后端失败:', apiError);
+        // 即使后端提交失败，本地记录仍然保存，用户可以稍后手动提交
+        message.warning('播种记录已保存到本地，但提交到服务器失败，请稍后手动提交');
+      }
+      hide();
+      message.success(`已成功添加 ${batchSowingRecords.length} 条播种记录`);
+      setBatchSowingModalOpen(false);
+      batchSowingForm.resetFields();
+      setSelectedRows([]); // 清空选择
+
+      return true;
+    } catch (error) {
+      message.error('批量播种失败，请重试');
       return false;
     }
   };
@@ -1186,16 +1274,13 @@ const TableList: React.FC = () => {
           >
             批量留种
           </Button>
-          {/* <Button
-            type="primary"
-            onClick={async () => {
-              await handleBatchSowing(selectedRowsState);
-              setSelectedRows([]);
-              actionRef.current?.reloadAndRest?.();
+          <Button
+            onClick={() => {
+              handleBatchSowing(selectedRowsState as API.RuleListItem[]);
             }}
           >
             批量播种
-          </Button> */}
+          </Button>
         </FooterToolbar>
       )}
       <ModalForm
@@ -1931,7 +2016,15 @@ const TableList: React.FC = () => {
               ]}
               dataSource={Array.isArray(currentVariety?.hybridizationList) ? currentVariety.hybridizationList : []}
               rowKey="id"
-              pagination={{ pageSize: 5 }}
+              pagination={{
+                pageSize: hybridListPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ['5', '10', '20', '50'],
+                showQuickJumper: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (_page, pageSize) => setHybridListPageSize(pageSize),
+                onShowSizeChange: (_current, size) => setHybridListPageSize(size),
+              }}
               style={{ marginBottom: '24px' }}
             />
           </div>
@@ -1976,7 +2069,15 @@ const TableList: React.FC = () => {
                  return !used;
                })}
               rowKey="key"
-              pagination={{ pageSize: 5 }}
+              pagination={{
+                pageSize: candidateListPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ['5', '10', '20', '50'],
+                showQuickJumper: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (_page, pageSize) => setCandidateListPageSize(pageSize),
+                onShowSizeChange: (_current, size) => setCandidateListPageSize(size),
+              }}
               style={{ marginBottom: '24px' }}
             />
           </div>
@@ -2016,7 +2117,15 @@ const TableList: React.FC = () => {
               ]}
               dataSource={Array.isArray(currentVariety?.hybridizationList) ? currentVariety.hybridizationList : []}
               rowKey="id"
-              pagination={{ pageSize: 5 }}
+              pagination={{
+                pageSize: summaryListPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ['5', '10', '20', '50'],
+                showQuickJumper: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (_page, pageSize) => setSummaryListPageSize(pageSize),
+                onShowSizeChange: (_current, size) => setSummaryListPageSize(size),
+              }}
             />
           </div>
         </Space>
@@ -2120,6 +2229,102 @@ const TableList: React.FC = () => {
             />
           </Form>
         </div>
+      </Modal>
+
+      {/* 批量播种模态框 */}
+      <Modal
+        title={<div style={{ borderBottom: '1px solid #f0f0f0', padding: '16px 24px', margin: '-20px -24px 20px' }}>
+          <span style={{ fontSize: '18px', fontWeight: 500 }}>批量播种</span>
+        </div>}
+        open={batchSowingModalOpen}
+        onCancel={() => {
+          setBatchSowingModalOpen(false);
+          batchSowingForm.resetFields();
+        }}
+        width={600}
+        styles={{ body: { padding: '24px' } }}
+        footer={[
+          <Button key="cancel" onClick={() => {
+            setBatchSowingModalOpen(false);
+            batchSowingForm.resetFields();
+          }}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={() => {
+              batchSowingForm.validateFields()
+                .then(values => {
+                  handleBatchSowingSubmit(values);
+                })
+                .catch(info => {
+                  console.log('Validate Failed:', info);
+                });
+            }}
+          >
+            确认批量播种
+          </Button>
+        ]}
+      >
+        <div style={{ background: '#fafafa', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
+          <h4 style={{ margin: '0 0 12px', color: '#1890ff' }}>已选择的品种 ({selectedRowsState.length} 个)</h4>
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {selectedRowsState.map((record) => (
+              <div key={record.key} style={{
+                padding: '8px 12px',
+                margin: '4px 0',
+                background: '#fff',
+                borderRadius: '4px',
+                border: '1px solid #e8e8e8'
+              }}>
+                <span style={{ fontWeight: 500 }}>{record.varietyName}</span>
+                <span style={{ color: '#666', marginLeft: '8px' }}>({record.seedNumber})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Form
+          form={batchSowingForm}
+          layout="vertical"
+          onFinish={handleBatchSowingSubmit}
+        >
+          <Form.Item
+            label="计划编号"
+            name="planNumber"
+            rules={[{ required: true, message: '请输入计划编号' }]}
+            extra="系统将自动为每个品种生成对应的种植编号"
+          >
+            <Input size="large" placeholder="请输入计划编号" />
+          </Form.Item>
+
+          <Form.Item
+            label="默认播种数量"
+            name="defaultSowingCount"
+            rules={[{ required: true, message: '请输入播种数量' }]}
+            extra="所有品种将使用相同的播种数量"
+          >
+            <InputNumber
+              size="large"
+              min={1}
+              precision={0}
+              style={{ width: '100%' }}
+              placeholder="请输入播种数量"
+            />
+          </Form.Item>
+
+          <div style={{ background: '#f6ffed', padding: '16px', borderRadius: '8px', border: '1px solid #b7eb8f' }}>
+            <h4 style={{ color: '#52c41a', marginTop: 0 }}>批量播种说明：</h4>
+            <ul style={{ color: '#666', marginBottom: 0 }}>
+              <li>系统将为每个选中的品种创建一条播种记录</li>
+              <li>种植编号将自动生成为：计划编号-001、计划编号-002...</li>
+              <li>播种记录将同时保存到本地和提交到服务器</li>
+              <li>所有品种将使用相同的播种数量和计划编号</li>
+              <li>如果服务器提交失败，记录仍会保存在本地，可稍后手动提交</li>
+            </ul>
+          </div>
+        </Form>
       </Modal>
     </PageContainer>
   );

@@ -94,12 +94,6 @@ export default [
         component: './SavedSeeds',
 
       },
-      {
-        name: '杂交记录',
-        icon: 'fileText',
-        path: '/germplasm/hybrid-record',
-        component: './HybridRecord',
-      },
     ],
   },
   {
@@ -212,6 +206,25 @@ export default [
         path: '/purification/saved-seeds',
         component: './Purification/SavedRecords',
 
+      },
+    ],
+  },
+   {
+    name: '杂交管理',
+    icon: 'fileText',
+    path: '/Hybrid',
+    routes: [
+      {
+        name: '杂交考种记录',
+        icon: 'import',
+        path: '/Hybrid/HybridRecord',
+        component: './Hybrid/HybridRecord',
+      },
+            {
+        name: '杂交计划配组',
+        icon: 'import',
+        path: '/Hybrid/HybridPlan',
+        component: './Hybrid/HybridPlan',
       },
     ],
   },

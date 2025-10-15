@@ -410,7 +410,7 @@ const HybridRecord: React.FC = () => {
   return (
     <PageContainer
       header={{
-        title: '杂交记录',
+        title: '杂交考种记录',
       }}
     >
       {!sowingNumberParam && (
