@@ -417,3 +417,237 @@ export async function alipayLogin(body: {
     ...(options || {}),
   });
 }
+
+// ==================== 仪表板数据 API ====================
+
+/** 获取仪表板统计数据 GET /api/dashboard/statistics */
+export async function getDashboardStatistics(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{
+    totalVarieties: number;
+    newThisYear: number;
+    seedReserves: number;
+    successRate: number;
+  }>('/api/dashboard/statistics', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取品种类型分布数据 GET /api/dashboard/variety-distribution */
+export async function getVarietyDistribution(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    name: string;
+    value: number;
+    subTypes: string;
+  }>>('/api/dashboard/variety-distribution', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取年度引种趋势数据 GET /api/dashboard/introduction-trend */
+export async function getIntroductionTrend(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    year: string;
+    count: number;
+    success: number;
+    rate: number;
+    spring: number;
+    summer: number;
+    autumn: number;
+    winter: number;
+  }>>('/api/dashboard/introduction-trend', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取品种性能评估数据 GET /api/dashboard/performance */
+export async function getPerformanceData(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    subject: string;
+    A: number;
+    B: number;
+    C: number;
+    fullMark: number;
+  }>>('/api/dashboard/performance', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取生长周期数据 GET /api/dashboard/growth-cycle */
+export async function getGrowthCycleData(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    name: string;
+    西瓜: number;
+    甜瓜: number;
+    南瓜: number;
+    黄瓜: number;
+  }>>('/api/dashboard/growth-cycle', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取产量与环境关系数据 GET /api/dashboard/yield-environment */
+export async function getYieldEnvironmentData(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    temperature: number;
+    humidity: number;
+    yield: number;
+    name: string;
+  }>>('/api/dashboard/yield-environment', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取地域品种分布数据 GET /api/dashboard/regional-distribution */
+export async function getRegionalDistribution(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    name: string;
+    varieties: Array<{
+      name: string;
+      count: number;
+    }>;
+  }>>('/api/dashboard/regional-distribution', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取品种类型详细分布数据 GET /api/dashboard/detailed-types */
+export async function getDetailedTypes(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    name: string;
+    subtypes: Array<{
+      name: string;
+      count: number;
+    }>;
+  }>>('/api/dashboard/detailed-types', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取糖度分布数据 GET /api/dashboard/sweetness-distribution */
+export async function getSweetnessDistribution(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{
+    range: string;
+    count: number;
+    percentage: number;
+  }>>('/api/dashboard/sweetness-distribution', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}
+
+/** 获取所有仪表板数据 GET /api/dashboard/all */
+export async function getAllDashboardData(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{
+    statistics: {
+      totalVarieties: number;
+      newThisYear: number;
+      seedReserves: number;
+      successRate: number;
+    };
+    varietyDistribution: Array<{
+      name: string;
+      value: number;
+      subTypes: string;
+    }>;
+    introductionTrend: Array<{
+      year: string;
+      count: number;
+      success: number;
+      rate: number;
+      spring: number;
+      summer: number;
+      autumn: number;
+      winter: number;
+    }>;
+    performanceData: Array<{
+      subject: string;
+      A: number;
+      B: number;
+      C: number;
+      fullMark: number;
+    }>;
+    growthCycleData: Array<{
+      name: string;
+      西瓜: number;
+      甜瓜: number;
+      南瓜: number;
+      黄瓜: number;
+    }>;
+    yieldEnvironmentData: Array<{
+      temperature: number;
+      humidity: number;
+      yield: number;
+      name: string;
+    }>;
+    regionalDistribution: Array<{
+      name: string;
+      varieties: Array<{
+        name: string;
+        count: number;
+      }>;
+    }>;
+    detailedTypes: Array<{
+      name: string;
+      subtypes: Array<{
+        name: string;
+        count: number;
+      }>;
+    }>;
+    sweetnessData: Array<{
+      range: string;
+      count: number;
+      percentage: number;
+    }>;
+  }>('/api/dashboard/all', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    ...(options || {}),
+  });
+}

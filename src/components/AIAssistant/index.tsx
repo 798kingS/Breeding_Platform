@@ -14,7 +14,7 @@ const AIAssistant: React.FC = () => {
   const [hasDragged, setHasDragged] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [hoverText, setHoverText] = useState('');
-  const hoverFullText = '你好，我是你的专属助手小埋，请问有什么可以帮到你的？';
+  const hoverFullText = '你好，我是你的专属助手育小星，请问有什么可以帮到你的？';
   const hoverTimerRef = useRef<number | null>(null);
   const dragResetTimerRef = useRef<number | null>(null);
 

@@ -526,8 +526,57 @@ const TableList: React.FC = () => {
   const [tableData, setTableData] = useState<API.RuleListItem[]>([]);
   const [filteredData, setFilteredData] = useState<API.RuleListItem[]>([]); // 用于前端过滤显示
 
-  const fetchTableData = async () => {
+    // 缓存相关的常量和函数
+    const CACHE_KEY = 'germplasm_table_data';
+    const CACHE_EXPIRY_KEY = 'germplasm_table_data_expiry';
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存
+
+    // 检查缓存是否有效
+    const isCacheValid = () => {
+      const expiry = localStorage.getItem(CACHE_EXPIRY_KEY);
+      if (!expiry) return false;
+      return Date.now() < parseInt(expiry);
+    };
+
+    // 从缓存获取数据
+    const getCachedData = () => {
+      if (!isCacheValid()) return null;
+      const cachedData = localStorage.getItem(CACHE_KEY);
+      return cachedData ? JSON.parse(cachedData) : null;
+    };
+
+    // 保存数据到缓存
+    const setCachedData = (data: any) => {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      localStorage.setItem(CACHE_EXPIRY_KEY, (Date.now() + CACHE_DURATION).toString());
+    };
+
+    // 清除缓存
+    const clearCache = () => {
+      localStorage.removeItem(CACHE_KEY);
+      localStorage.removeItem(CACHE_EXPIRY_KEY);
+    };
+  const fetchTableData = async (forceRefresh = false) => {
     try {
+      // 如果不是强制刷新，先尝试从缓存获取数据
+      // 如果不是强制刷新，先尝试从缓存获取数据
+      if (!forceRefresh) {
+        const cachedData = getCachedData();
+        if (cachedData) {
+          console.log('从缓存加载数据');
+          setTableData(cachedData);
+          setFilteredData(cachedData);
+          // 显示缓存提示（仅在首次加载时显示）
+          const isFirstLoad = !localStorage.getItem('cache_notice_shown');
+          if (isFirstLoad) {
+            message.info('数据已从缓存加载，如需最新数据请点击"刷新数据"按钮', 3);
+            localStorage.setItem('cache_notice_shown', 'true');
+          }
+          return;
+        }
+      }
+
+      console.log('从服务器加载数据');
       const token1 = localStorage.getItem('token');
       const response = await fetch('/api/seed/getSeed', {
         method: 'GET',
@@ -596,6 +645,7 @@ const TableList: React.FC = () => {
             }
           })
         );
+        setCachedData(dataWithHybridization);
         setTableData(dataWithHybridization); // 保存包含杂交数据的原始数据
         setFilteredData(dataWithHybridization); // 初始化显示数据
       } else {
@@ -627,7 +677,8 @@ const TableList: React.FC = () => {
         body: JSON.stringify({ keys: selectedRows.map(row => row.key) }),
       });
       // console.log('批量删除记录:', JSON.stringify([{ keys: selectedRows.map(row => row.key) }]));
-      await fetchTableData(); // 刷新表格数据
+      clearCache(); // 清除缓存
+      await fetchTableData(true);
       hide();
       message.success('删除成功');
       return true;
@@ -716,9 +767,10 @@ const TableList: React.FC = () => {
       const result = await response.json();
       if (result.msg || result.code === 200) {
         message.success('已添加到杂交配组表');
+        clearCache(); // 清除缓存
         // 实时刷新：更新当前模态框中的已配杂交列表，并同步主表数据以刷新可选列表
         await refreshCurrentVarietyHybrids();
-        await fetchTableData();
+        await fetchTableData(true); 
       } else {
         message.error(result?.msg || '添加失败');
       }
@@ -828,7 +880,8 @@ const TableList: React.FC = () => {
       console.log(formData);
       if (!response.ok) throw new Error('导入失败');
       message.success('导入成功');
-      fetchTableData(); // 导入成功后刷新表格
+      clearCache(); // 清除缓存
+      fetchTableData(true); // 导入成功后强制刷新表格
     } catch (error) {
       //   message.error('导入失败，请重试');
     } finally {
@@ -1058,6 +1111,16 @@ const TableList: React.FC = () => {
         }}
         toolBarRender={() => [
           <Button
+            key="refresh"
+            onClick={() => {
+              clearCache();
+              fetchTableData(true);
+              message.success('数据已刷新');
+            }}
+          >
+            刷新数据
+          </Button>,
+          <Button
             key="import"
             type="primary"
             icon={<ImportOutlined />}
@@ -1185,7 +1248,8 @@ const TableList: React.FC = () => {
 
             if (result && (result.msg === 'SUCCESS' || result.code === 200 || result.success)) {
               // message.success('添加成功');
-              await fetchTableData();
+              clearCache(); // 清除缓存
+              await fetchTableData(true); // 强制刷新数据
               handleModalOpen(false);
               message.success('添加成功');
               if (actionRef.current) actionRef.current.reload();
@@ -1840,10 +1904,11 @@ const TableList: React.FC = () => {
                             const result = await response.json();
                             if (result.msg || result.code === 200) {
                               message.success('已退回该配组');
+                              clearCache(); // 清除缓存
                               // 刷新当前模态框中的已配杂交列表
                               await refreshCurrentVarietyHybrids();
                               // 同步刷新主表以保持一致
-                              await fetchTableData();
+                              await fetchTableData(true); // 强制刷新数据
                             } else {
                               message.error(result?.msg || '退回失败');
                             }

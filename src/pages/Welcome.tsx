@@ -1,6 +1,6 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { Card, Row, Col, Statistic, Typography, Space, Button, message } from 'antd';
-import React, { useEffect } from 'react';
+import { Card, Row, Col, Statistic, Typography, Space, Button, message, Spin } from 'antd';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, LineChart, Line, RadarChart, Radar, 
@@ -9,54 +9,149 @@ import {
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
-import { PlayCircleOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { 
+  getAllDashboardData
+} from '@/services/Breeding Platform/api';
 
 const { Title, Paragraph } = Typography;
 
+// 定义数据类型
+interface VarietyItem {
+  name: string;
+  value: number;
+  subTypes: string;
+}
+
+interface IntroductionItem {
+  year: string;
+  count: number;
+  success: number;
+  rate: number;
+  spring: number;
+  summer: number;
+  autumn: number;
+  winter: number;
+}
+
+interface PerformanceItem {
+  subject: string;
+  A: number;
+  B: number;
+  C: number;
+  fullMark: number;
+}
+
+interface GrowthCycleItem {
+  name: string;
+  西瓜: number;
+  甜瓜: number;
+  南瓜: number;
+  黄瓜: number;
+}
+
+interface YieldEnvironmentItem {
+  temperature: number;
+  humidity: number;
+  yield: number;
+  name: string;
+}
+
+interface RegionVarietyItem {
+  name: string;
+  varieties: Array<{
+    name: string;
+    count: number;
+  }>;
+}
+
+interface DetailedTypeItem {
+  name: string;
+  subtypes: Array<{
+    name: string;
+    count: number;
+  }>;
+}
+
+interface SweetnessItem {
+  range: string;
+  count: number;
+  percentage: number;
+}
+
 const Welcome: React.FC = () => {
-  // 品种类型数据 - 更详细的数据
-  const varietyData = [
-    { name: '西瓜', value: 35, subTypes: '8号西瓜,甜王,黑美人' },
-    { name: '甜瓜', value: 25, subTypes: '哈密瓜,网纹瓜,白兰瓜' },
-    { name: '南瓜', value: 20, subTypes: '金瓜栗,蜜本南瓜,白皮南瓜' },
-    { name: '黄瓜', value: 20, subTypes: '旱黄瓜,水黄瓜,荷兰黄瓜' },
-    { name: '其他瓜类', value: 10, subTypes: '苦瓜,丝瓜,冬瓜' },
-  ];
+  // 状态管理
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [data, setData] = useState({
+    statistics: {
+      totalVarieties: 0,
+      newThisYear: 0,
+      seedReserves: 0,
+      successRate: 0,
+    },
+    varietyData: [] as VarietyItem[],
+    introductionData: [] as IntroductionItem[],
+    performanceData: [] as PerformanceItem[],
+    growthCycleData: [] as GrowthCycleItem[],
+    yieldEnvironmentData: [] as YieldEnvironmentItem[],
+    regionVarietyData: [] as RegionVarietyItem[],
+    detailedTypeData: [] as DetailedTypeItem[],
+    sweetnessData: [] as SweetnessItem[],
+  });
 
-  // 年度引种数据 - 更详细的月度数据
-  const introductionData = [
-    { year: '2020', count: 15, success: 12, rate: 80, spring: 5, summer: 4, autumn: 3, winter: 3 },
-    { year: '2021', count: 22, success: 19, rate: 86, spring: 7, summer: 6, autumn: 5, winter: 4 },
-    { year: '2022', count: 28, success: 25, rate: 89, spring: 8, summer: 8, autumn: 7, winter: 5 },
-    { year: '2023', count: 35, success: 32, rate: 91, spring: 10, summer: 9, autumn: 8, winter: 8 },
-  ];
+  // 获取所有仪表板数据
+  const fetchAllData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await getAllDashboardData();
+      if (response) {
+        setData({
+          statistics: response.statistics || data.statistics,
+          varietyData: response.varietyDistribution || [],
+          introductionData: response.introductionTrend || [],
+          performanceData: response.performanceData || [],
+          growthCycleData: response.growthCycleData || [],
+          yieldEnvironmentData: response.yieldEnvironmentData || [],
+          regionVarietyData: response.regionalDistribution || [],
+          detailedTypeData: response.detailedTypes || [],
+          sweetnessData: response.sweetnessData || [],
+        });
+      }
+    } catch (error) {
+      console.error('获取仪表板数据失败:', error);
+      message.error('获取数据失败，请刷新页面重试');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // 品种性能评估数据 - 更详细的评分
-  const performanceData = [
-    { subject: '抗病性', A: 85, B: 75, C: 65, fullMark: 100 },
-    { subject: '产量', A: 92, B: 85, C: 70, fullMark: 100 },
-    { subject: '口感', A: 88, B: 90, C: 75, fullMark: 100 },
-    { subject: '储存性', A: 82, B: 78, C: 68, fullMark: 100 },
-    { subject: '适应性', A: 87, B: 80, C: 72, fullMark: 100 },
-    { subject: '市场价值', A: 90, B: 85, C: 78, fullMark: 100 },
-  ];
+  // 刷新数据
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await fetchAllData();
+      message.success('数据已刷新');
+    } catch (error) {
+      message.error('刷新失败，请重试');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
-  // 新增：生长周期数据
-  const growthCycleData = [
-    { name: '发芽期', 西瓜: 7, 甜瓜: 5, 南瓜: 6, 黄瓜: 4 },
-    { name: '幼苗期', 西瓜: 15, 甜瓜: 12, 南瓜: 14, 黄瓜: 10 },
-    { name: '生长期', 西瓜: 30, 甜瓜: 25, 南瓜: 28, 黄瓜: 20 },
-    { name: '开花期', 西瓜: 10, 甜瓜: 8, 南瓜: 9, 黄瓜: 7 },
-    { name: '结果期', 西瓜: 40, 甜瓜: 35, 南瓜: 38, 黄瓜: 30 },
-  ];
+  // 组件挂载时获取数据
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
 
-  // 修改：产量与环境关系数据
-  const yieldEnvironmentData = [
-    { temperature: 20, humidity: 65, yield: 65, name: '20°C' },
-    { temperature: 28, humidity: 75, yield: 75, name: '28°C' },
-    { temperature: 25, humidity: 70, yield: 70, name: '25°C' },
-    { temperature: 15, humidity: 60, yield: 60, name: '15°C' },
-  ];
+  // 设置定时刷新（每5分钟）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAllData();
+    }, 5 * 60 * 1000); // 5分钟
+
+    return () => clearInterval(interval);
+  }, [fetchAllData]);
 
   // 添加：产量与温度关系图表配置
   const yieldTempChartOption: EChartsOption = {
@@ -74,7 +169,7 @@ const Welcome: React.FC = () => {
     },
     xAxis: {
       type: 'category',
-      data: yieldEnvironmentData.map(item => item.name),
+      data: data.yieldEnvironmentData.map(item => item.name),
       name: '产量温度(°C)',
       nameLocation: 'middle',
       nameGap: 30,
@@ -94,7 +189,7 @@ const Welcome: React.FC = () => {
       }
     },
     series: [{
-      data: yieldEnvironmentData.map(item => item.yield),
+      data: data.yieldEnvironmentData.map(item => item.yield),
       type: 'scatter',
       symbolSize: 20,
       itemStyle: {
@@ -103,90 +198,7 @@ const Welcome: React.FC = () => {
     }]
   };
 
-  // 修改：地域品种统计数据
-  interface VarietyItem {
-    name: string;
-    count: number;
-  }
-
-  interface RegionVariety {
-    name: string;
-    varieties: VarietyItem[];
-  }
-
-  interface DetailedType {
-    name: string;
-    subtypes: VarietyItem[];
-  }
-
-  interface SweetnessItem {
-    range: string;
-    count: number;
-    percentage: number;
-  }
-
-  const regionVarietyData: RegionVariety[] = [
-    { name: '吴兴区', varieties: [
-      { name: '西瓜', count: 25 },
-      { name: '甜瓜', count: 18 },
-      { name: '南瓜', count: 12 }
-    ]},
-    { name: '南浔区', varieties: [
-      { name: '西瓜', count: 20 },
-      { name: '甜瓜', count: 15 },
-      { name: '南瓜', count: 10 }
-    ]},
-    { name: '德清县', varieties: [
-      { name: '西瓜', count: 22 },
-      { name: '甜瓜', count: 16 },
-      { name: '南瓜', count: 14 }
-    ]},
-    { name: '长兴县', varieties: [
-      { name: '西瓜', count: 28 },
-      { name: '甜瓜', count: 20 },
-      { name: '南瓜', count: 15 }
-    ]},
-    { name: '安吉县', varieties: [
-      { name: '西瓜', count: 24 },
-      { name: '甜瓜', count: 17 },
-      { name: '南瓜', count: 13 }
-    ]}
-  ];
-
-  const detailedTypeData: DetailedType[] = [
-    { 
-      name: '西瓜',
-      subtypes: [
-        { name: '大型西瓜', count: 25 },
-        { name: '中型西瓜', count: 20 },
-        { name: '小型西瓜', count: 15 },
-        { name: '无籽西瓜', count: 18 }
-      ]
-    },
-    { 
-      name: '甜瓜',
-      subtypes: [
-        { name: '哈密瓜', count: 22 },
-        { name: '网纹瓜', count: 18 },
-        { name: '香瓜', count: 15 }
-      ]
-    },
-    { 
-      name: '南瓜',
-      subtypes: [
-        { name: '白皮南瓜', count: 12 },
-        { name: '金瓜栗', count: 15 },
-        { name: '蜜本南瓜', count: 10 }
-      ]
-    }
-  ];
-
-  const sweetnessData: SweetnessItem[] = [
-    { range: '<10°Brix', count: 20, percentage: 15 },
-    { range: '10-12°Brix', count: 50, percentage: 38 },
-    { range: '12-14°Brix', count: 40, percentage: 30 },
-    { range: '>14°Brix', count: 22, percentage: 17 }
-  ];
+  // 这些数据现在从后端获取，不再使用静态数据
 
   // 更新主题配色
   const THEME_COLORS = {
@@ -318,16 +330,16 @@ const Welcome: React.FC = () => {
     tooltip: {
       trigger: 'item',
       formatter: (params: any) => {
-        const data = regionVarietyData.find(item => item.name === params.name);
-        if (data) {
-          const varietiesHtml = data.varieties
+        const regionData = data.regionVarietyData.find(item => item.name === params.name);
+        if (regionData) {
+          const varietiesHtml = regionData.varieties
             .map(v => `${v.name}: ${v.count}个`)
             .join('<br/>');
           return `
             <div style="font-weight: bold; margin-bottom: 5px;">${params.name}</div>
             <div style="margin-bottom: 5px;">品种详情：</div>
             ${varietiesHtml}
-            <div style="margin-top: 5px;">总数：${data.varieties.reduce((sum, v) => sum + v.count, 0)}个</div>
+            <div style="margin-top: 5px;">总数：${regionData.varieties.reduce((sum, v) => sum + v.count, 0)}个</div>
           `;
         }
         return `${params.name}`;
@@ -370,13 +382,31 @@ const Welcome: React.FC = () => {
             areaColor: '#43A047'
           }
         },
-        data: regionVarietyData.map(item => ({
+        data: data.regionVarietyData.map(item => ({
           name: item.name.replace('区', '').replace('县', ''),
           value: item.varieties.reduce((sum, v) => sum + v.count, 0)
         }))
       }
     ]
   };
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '60vh',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <Spin size="large" />
+          <div style={{ color: '#666', fontSize: '16px' }}>正在加载数据...</div>
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer>
@@ -465,23 +495,45 @@ const Welcome: React.FC = () => {
 
       <Card style={{ ...cardStyle, marginBottom: '32px' }}>
         <div style={headerStyle}>
-          <Title level={2} style={{ 
-            color: '#fff', 
-            margin: 0,
-            fontSize: '36px',
-            fontWeight: '600',
-            textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-          }}>
-            种质资源库数据可视化
-          </Title>
-          <Paragraph style={{ 
-            color: '#fff', 
-            margin: '16px 0 0',
-            fontSize: '18px',
-            opacity: 0.9
-          }}>
-            全面展示种质资源分布与统计信息
-          </Paragraph>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <Title level={2} style={{ 
+                color: '#fff', 
+                margin: 0,
+                fontSize: '36px',
+                fontWeight: '600',
+                textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+              }}>
+                种质资源库数据可视化
+              </Title>
+              <Paragraph style={{ 
+                color: '#fff', 
+                margin: '16px 0 0',
+                fontSize: '18px',
+                opacity: 0.9
+              }}>
+                全面展示种质资源分布与统计信息
+              </Paragraph>
+            </div>
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
+              loading={refreshing}
+              onClick={handleRefresh}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                color: '#fff',
+                height: '40px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: '500',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+              }}
+            >
+              刷新数据
+            </Button>
+          </div>
         </div>
 
         <Row gutter={[24, 24]}>
@@ -489,7 +541,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>品种总数</span>}
-                value={156} 
+                value={data.statistics.totalVarieties} 
                 suffix="个"
                 valueStyle={{ 
                   color: '#2E7D32', 
@@ -506,7 +558,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>本年度新增</span>}
-                value={35} 
+                value={data.statistics.newThisYear} 
                 suffix="个"
                 valueStyle={{ 
                   color: '#43A047', 
@@ -523,7 +575,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>留种数量</span>}
-                value={89} 
+                value={data.statistics.seedReserves} 
                 suffix="份"
                 valueStyle={{ 
                   color: '#66BB6A', 
@@ -540,7 +592,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>成功率</span>}
-                value={92.8} 
+                value={data.statistics.successRate} 
                 suffix="%"
                 precision={1}
                 valueStyle={{ 
@@ -597,7 +649,7 @@ const Welcome: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={varietyData}
+                      data={data.varietyData}
                       cx="50%"
                       cy="50%"
                       labelLine={true}
@@ -606,7 +658,7 @@ const Welcome: React.FC = () => {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {varietyData.map((entry, index) => (
+                      {data.varietyData.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
                           fill={THEME_COLORS.pieChart[index % THEME_COLORS.pieChart.length]}
@@ -649,7 +701,7 @@ const Welcome: React.FC = () => {
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={introductionData}
+                    data={data.introductionData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
@@ -682,7 +734,7 @@ const Welcome: React.FC = () => {
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={introductionData}
+                    data={data.introductionData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
@@ -718,7 +770,7 @@ const Welcome: React.FC = () => {
             >
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart outerRadius={90} data={performanceData}>
+                  <RadarChart outerRadius={90} data={data.performanceData}>
                     <PolarGrid stroke="#E8F5E9" />
                     <PolarAngleAxis dataKey="subject" />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} />
@@ -761,7 +813,7 @@ const Welcome: React.FC = () => {
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
-                    data={growthCycleData}
+                    data={data.growthCycleData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
@@ -815,7 +867,7 @@ const Welcome: React.FC = () => {
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={detailedTypeData.flatMap(type => 
+                    data={data.detailedTypeData.flatMap(type => 
                       type.subtypes.map(subtype => ({
                         category: type.name,
                         name: subtype.name,
@@ -850,7 +902,7 @@ const Welcome: React.FC = () => {
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={sweetnessData}
+                    data={data.sweetnessData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
