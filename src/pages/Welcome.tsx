@@ -3,16 +3,27 @@ import { Card, Row, Col, Statistic, Typography, Space, Button, message, Spin } f
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
-  CartesianGrid, Tooltip, Legend, LineChart, Line, RadarChart, Radar, 
-  PolarGrid, PolarAngleAxis, PolarRadiusAxis, AreaChart, Area
+  CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { 
-  getAllDashboardData
+  getDashboardStatistics,
+  getRegionalDistribution,
+  getVarietySugarComparison,
+  getVarietyCompositeScores,
+  getHybridDiseaseResistance,
+  getSugarYieldPairs,
+  getHybridSankey,
+  getIntroductionTimeline,
+  getCrossTableVarietyCompare
 } from '@/services/Breeding Platform/api';
+import { 
+  transformVarietyDistributionForPieChart,
+  isApiResponseSuccess 
+} from '@/utils/dataTransform';
 
 const { Title, Paragraph } = Typography;
 
@@ -20,41 +31,7 @@ const { Title, Paragraph } = Typography;
 interface VarietyItem {
   name: string;
   value: number;
-  subTypes: string;
-}
-
-interface IntroductionItem {
-  year: string;
-  count: number;
-  success: number;
-  rate: number;
-  spring: number;
-  summer: number;
-  autumn: number;
-  winter: number;
-}
-
-interface PerformanceItem {
-  subject: string;
-  A: number;
-  B: number;
-  C: number;
-  fullMark: number;
-}
-
-interface GrowthCycleItem {
-  name: string;
-  西瓜: number;
-  甜瓜: number;
-  南瓜: number;
-  黄瓜: number;
-}
-
-interface YieldEnvironmentItem {
-  temperature: number;
-  humidity: number;
-  yield: number;
-  name: string;
+  subTypes?: string; // 改为可选属性
 }
 
 interface RegionVarietyItem {
@@ -65,19 +42,7 @@ interface RegionVarietyItem {
   }>;
 }
 
-interface DetailedTypeItem {
-  name: string;
-  subtypes: Array<{
-    name: string;
-    count: number;
-  }>;
-}
-
-interface SweetnessItem {
-  range: string;
-  count: number;
-  percentage: number;
-}
+// 删除未使用的旧图表接口定义
 
 const Welcome: React.FC = () => {
   // 状态管理
@@ -91,33 +56,143 @@ const Welcome: React.FC = () => {
       successRate: 0,
     },
     varietyData: [] as VarietyItem[],
-    introductionData: [] as IntroductionItem[],
-    performanceData: [] as PerformanceItem[],
-    growthCycleData: [] as GrowthCycleItem[],
-    yieldEnvironmentData: [] as YieldEnvironmentItem[],
     regionVarietyData: [] as RegionVarietyItem[],
-    detailedTypeData: [] as DetailedTypeItem[],
-    sweetnessData: [] as SweetnessItem[],
+    // 新增：七种图表所需数据
+    varietySugarData: [] as Array<{ name: string; sugar: number }>,
+    compositeScores: [] as Array<{ name: string; 糖度: number; 肉厚: number; 产量: number; 抗性: number }>,
+    hybridDisease: { diseases: [] as string[], combinations: [] as string[], values: [] as Array<[number, number, number]> },
+    sugarYieldPairs: [] as Array<{ name: string; sugar: number; yield: number }>,
+    sankeyNodes: [] as Array<{ name: string }>,
+    sankeyLinks: [] as Array<{ source: string; target: string; value: number }>,
+    introductionTimeline: [] as Array<{ date: string; count: number }>,
+    crossTableCompare: [] as Array<{ name: string; sugar: number; yield: number }>,
   });
 
-  // 获取所有仪表板数据
+  // 单独获取品种类型分布数据
+  const fetchVarietyDistribution = async () => {
+    try {
+      console.log('正在获取品种类型分布数据...');
+      const response = await getRegionalDistribution();
+      console.log('品种类型分布数据响应:', response);
+      
+      if (isApiResponseSuccess(response)) {
+        const transformedData = transformVarietyDistributionForPieChart(response);
+        // console.log('转换后的品种类型分布数据:', transformedData);
+        
+        setData(prev => ({
+          ...prev,
+          varietyData: transformedData
+        }));
+      } else {
+        console.warn('品种类型分布API响应失败，使用备用数据');
+        // 如果API失败，使用备用数据
+        const fallbackData = [
+          { name: '菜瓜', value: 10 },
+          { name: '白皮或奶白', value: 8 },
+          { name: '羊角蜜', value: 12 },
+          { name: '花皮', value: 6 },
+          { name: '黄皮', value: 4 },
+          { name: '绿皮', value: 7 },
+          { name: '类甜宝', value: 5 },
+          { name: '厚皮', value: 9 },
+          { name: '其他', value: 3 }
+        ];
+        setData(prev => ({
+          ...prev,
+          varietyData: fallbackData
+        }));
+      }
+    } catch (error) {
+      console.error('获取品种类型分布数据失败:', error);
+      // 如果API失败，使用备用数据
+      const fallbackData = [
+        { name: '菜瓜', value: 10 },
+        { name: '白皮或奶白', value: 8 },
+        { name: '羊角蜜', value: 12 },
+        { name: '花皮', value: 6 },
+        { name: '黄皮', value: 4 },
+        { name: '绿皮', value: 7 },
+        { name: '类甜宝', value: 5 },
+        { name: '厚皮', value: 9 },
+        { name: '其他', value: 3 }
+      ];
+      setData(prev => ({
+        ...prev,
+        varietyData: fallbackData
+      }));
+    }
+  };
+
+
+  // 获取所有数据
   const fetchAllData = useCallback(async () => {
     try {
-      setLoading(true);
-      const response = await getAllDashboardData();
-      if (response) {
-        setData({
-          statistics: response.statistics || data.statistics,
-          varietyData: response.varietyDistribution || [],
-          introductionData: response.introductionTrend || [],
-          performanceData: response.performanceData || [],
-          growthCycleData: response.growthCycleData || [],
-          yieldEnvironmentData: response.yieldEnvironmentData || [],
-          regionVarietyData: response.regionalDistribution || [],
-          detailedTypeData: response.detailedTypes || [],
-          sweetnessData: response.sweetnessData || [],
-        });
-      }
+      setLoading(true);      // 并行获取所有数据
+      await Promise.all([
+        fetchVarietyDistribution(),
+        (async () => {
+          try {
+            const res = await getVarietySugarComparison();
+            if (res && res.data) {
+              const mappedData = res.data.map(item => ({ name: item.type, sugar: item.sugar }));
+              setData(prev => ({ ...prev, varietySugarData: mappedData }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await getVarietyCompositeScores();
+            if (res) {
+              setData(prev => ({ ...prev, compositeScores: res }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await getHybridDiseaseResistance();
+            if (res) {
+              setData(prev => ({ ...prev, hybridDisease: res }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await getSugarYieldPairs();
+            if (res && res.data) {
+              const mappedData = res.data.map(item => ({ name: item.type, sugar: item.sugar, yield: item.yield }));
+              setData(prev => ({ ...prev, sugarYieldPairs: mappedData }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await getHybridSankey();
+            if (res) {
+              setData(prev => ({ ...prev, sankeyNodes: res.nodes, sankeyLinks: res.links }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await getIntroductionTimeline();
+            if (res && res.data) {
+              const mappedData = res.data.map(item => ({ date: item.introductionTime, count: item.count }));
+              setData(prev => ({ ...prev, introductionTimeline: mappedData }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+        (async () => {
+          try {
+            const res = await getCrossTableVarietyCompare();
+            if (res && res.data) {
+              const mappedData = res.data.map((item, index) => ({ name: `品种${index + 1}`, sugar: item.sugar, yield: item.yield }));
+              setData(prev => ({ ...prev, crossTableCompare: mappedData }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
+      ]);
+      
+      // console.log('所有数据获取完成');
     } catch (error) {
       console.error('获取仪表板数据失败:', error);
       message.error('获取数据失败，请刷新页面重试');
@@ -153,50 +228,7 @@ const Welcome: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchAllData]);
 
-  // 添加：产量与温度关系图表配置
-  const yieldTempChartOption: EChartsOption = {
-    title: {
-      text: '产量与环境关系分析',
-      textStyle: {
-        color: '#2E7D32',
-        fontSize: '16px',
-        fontWeight: 'normal'
-      }
-    },
-    tooltip: {
-      trigger: 'axis',
-      formatter: '{b}: {c}%'
-    },
-    xAxis: {
-      type: 'category',
-      data: data.yieldEnvironmentData.map(item => item.name),
-      name: '产量温度(°C)',
-      nameLocation: 'middle',
-      nameGap: 30,
-      axisLabel: {
-        color: '#666'
-      }
-    },
-    yAxis: {
-      type: 'value',
-      name: '湿度(%)',
-      min: 0,
-      max: 80,
-      interval: 20,
-      axisLabel: {
-        formatter: '{value}%',
-        color: '#666'
-      }
-    },
-    series: [{
-      data: data.yieldEnvironmentData.map(item => item.yield),
-      type: 'scatter',
-      symbolSize: 20,
-      itemStyle: {
-        color: '#2E7D32'
-      }
-    }]
-  };
+  // 删除旧的产量与温度关系图表配置（已由糖度-产量散点图替换）
 
   // 这些数据现在从后端获取，不再使用静态数据
 
@@ -389,6 +421,106 @@ const Welcome: React.FC = () => {
       }
     ]
   };
+
+  // ---------------- 新增：基于后端数据的图表配置 ----------------
+  // 1) 柱状图：品种糖度对比（Recharts） -> 使用 data.varietySugarData
+
+  // 2) 雷达图：品种综合评分（ECharts）
+  const radarOption: EChartsOption = {
+    title: { text: '品种综合评分', left: 'center', textStyle: { color: '#2E7D32' } },
+    tooltip: {},
+    legend: { data: data.compositeScores.map(i => i.name), bottom: 0 },
+    radar: {
+      indicator: [
+        { name: '糖度', max: 20 },
+        { name: '肉厚', max: 10 },
+        { name: '产量', max: 100 },
+        { name: '抗性', max: 10 }
+      ],
+      splitArea: { areaStyle: { color: ['#F1F8E9', '#E8F5E9'] } }
+    },
+    series: [
+      {
+        type: 'radar',
+        data: data.compositeScores.map(s => ({ value: [s.糖度, s.肉厚, s.产量, s.抗性], name: s.name })),
+        areaStyle: { opacity: 0.2 }
+      }
+    ]
+  };
+
+  // 3) 热力图：杂交组合抗病性分布（ECharts）
+  const diseases = data.hybridDisease.diseases;
+  const combinations = data.hybridDisease.combinations;
+  const heatmapData = data.hybridDisease.values;
+  const heatmapOption: EChartsOption = {
+    title: { text: '杂交组合抗病性分布', left: 'center', textStyle: { color: '#2E7D32' } },
+    tooltip: { position: 'top' },
+    grid: { height: '60%', top: '10%' },
+    xAxis: { type: 'category', data: diseases, splitArea: { show: true } },
+    yAxis: { type: 'category', data: combinations, splitArea: { show: true } },
+    visualMap: { min: 0, max: 10, calculable: true, orient: 'horizontal', left: 'center', bottom: '5%' },
+    series: [
+      {
+        name: '抗病强度',
+        type: 'heatmap',
+        data: heatmapData,
+        label: { show: false },
+        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
+      }
+    ]
+  };
+
+  // 4) 散点图：糖度与产量关系（ECharts）
+  const sugarYieldScatterData = data.sugarYieldPairs || [];
+  const scatterOption: EChartsOption = {
+    title: { text: '糖度与产量关系', left: 'center', textStyle: { color: '#2E7D32' } },
+    tooltip: {
+      trigger: 'item',
+      formatter: (p: any) => `${p.data.name}<br/>糖度: ${p.data.sugar}°Bx<br/>产量: ${p.data.yield}`
+    },
+    xAxis: { name: '糖度(°Bx)', type: 'value' },
+    yAxis: { name: '产量', type: 'value' },
+    series: [
+      {
+        type: 'scatter',
+        symbolSize: 14,
+        itemStyle: { color: '#2E7D32' },
+        data: sugarYieldScatterData.map(d => ({ value: [d.sugar, d.yield], ...d }))
+      }
+    ]
+  };
+
+  // 5) 桑基图：杂交组合来源关系（ECharts）
+  const sankeyNodes = data.sankeyNodes;
+  const sankeyLinks = data.sankeyLinks;
+  const sankeyOption: EChartsOption = {
+    title: { text: '杂交组合来源关系', left: 'center', textStyle: { color: '#2E7D32' } },
+    tooltip: { trigger: 'item' },
+    series: [
+      {
+        type: 'sankey',
+        data: sankeyNodes,
+        links: sankeyLinks,
+        emphasis: { focus: 'adjacency' },
+        lineStyle: { color: 'gradient', curveness: 0.5 }
+      }
+    ]
+  };
+
+  // 6) 时间轴图：引种时间分布（ECharts）
+  const introTimeline = data.introductionTimeline || [];
+  const timelineOption: EChartsOption = {
+    title: { text: '引种时间分布', left: 'center', textStyle: { color: '#2E7D32' } },
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: introTimeline.map(i => i.date) },
+    yAxis: { type: 'value', name: '品种数量' },
+    series: [
+      { type: 'line', smooth: true, areaStyle: {}, data: introTimeline.map(i => i.count), color: '#2E7D32' }
+    ]
+  };
+
+  // 7) 对比柱状图：不同表格中相同品种的特性对比（Recharts）
+  const crossTableCompareData = data.crossTableCompare || [];
 
   if (loading) {
     return (
@@ -649,7 +781,7 @@ const Welcome: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={data.varietyData}
+                      data={data.varietyData || []}
                       cx="50%"
                       cy="50%"
                       labelLine={true}
@@ -658,7 +790,7 @@ const Welcome: React.FC = () => {
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {data.varietyData.map((entry, index) => (
+                      {(data.varietyData || []).map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
                           fill={THEME_COLORS.pieChart[index % THEME_COLORS.pieChart.length]}
@@ -695,193 +827,43 @@ const Welcome: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
                 fontSize: '18px',
                 fontWeight: '600'
-              }}>年度引种趋势</span>}
+              }}>引种时间分布</span>}
+              hoverable
+            >
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReactECharts option={timelineOption} style={{ height: '100%' }} />
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col span={12}>
+            <Card 
+              style={chartCardStyle}
+              title={<span style={{ 
+                background: THEME_COLORS.gradients[0],
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>品种糖度对比</span>}
               hoverable
             >
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={data.introductionData}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
-                    <XAxis dataKey="year" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="count" name="引种数量" fill={CHART_COLORS.primary} />
-                    <Bar dataKey="success" name="成功数量" fill={CHART_COLORS.secondary} />
-                  </BarChart>
-                </ResponsiveContainer>
-          </div>
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col span={12}>
-            <Card 
-              style={chartCardStyle}
-              title={<span style={{ 
-                background: THEME_COLORS.gradients[0],
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '18px',
-                fontWeight: '600'
-              }}>成功率趋势</span>}
-              hoverable
-            >
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={data.introductionData}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
-                    <XAxis dataKey="year" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="rate" 
-                      name="成功率" 
-                      stroke={CHART_COLORS.primary}
-                      strokeWidth={2}
-                      dot={{ r: 6, fill: CHART_COLORS.primary }}
-                      activeDot={{ r: 8, fill: CHART_COLORS.accent }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card 
-              style={chartCardStyle}
-              title={<span style={{ 
-                background: THEME_COLORS.gradients[0],
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '18px',
-                fontWeight: '600'
-              }}>品种性能评估</span>}
-              hoverable
-            >
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart outerRadius={90} data={data.performanceData}>
-                    <PolarGrid stroke="#E8F5E9" />
-                    <PolarAngleAxis dataKey="subject" />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                    <Radar
-                      name="优质品种"
-                      dataKey="A"
-                      stroke={CHART_COLORS.primary}
-                      fill={CHART_COLORS.primary}
-                      fillOpacity={0.6}
-                    />
-                    <Radar
-                      name="普通品种"
-                      dataKey="B"
-                      stroke={CHART_COLORS.secondary}
-                      fill={CHART_COLORS.secondary}
-                      fillOpacity={0.6}
-                    />
-                    <Legend />
-                    <Tooltip />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col span={12}>
-            <Card 
-              style={chartCardStyle}
-              title={<span style={{ 
-                background: THEME_COLORS.gradients[0],
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '18px',
-                fontWeight: '600'
-              }}>生长周期对比</span>}
-              hoverable
-            >
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={data.growthCycleData}
+                    data={data.varietySugarData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
                     <XAxis dataKey="name" />
-                    <YAxis label={{ value: '天数', angle: -90, position: 'insideLeft' }} />
+                    <YAxis label={{ value: '糖度(°Bx)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip />
                     <Legend />
-                    <Area type="monotone" dataKey="西瓜" stackId="1" stroke={CHART_COLORS.primary} fill={CHART_COLORS.primary} fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="甜瓜" stackId="1" stroke={CHART_COLORS.secondary} fill={CHART_COLORS.secondary} fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="南瓜" stackId="1" stroke={CHART_COLORS.accent} fill={CHART_COLORS.accent} fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="黄瓜" stackId="1" stroke={CHART_COLORS.tertiary} fill={CHART_COLORS.tertiary} fillOpacity={0.6} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card 
-              style={chartCardStyle}
-              title={<span style={{ 
-                background: THEME_COLORS.gradients[0],
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '18px',
-                fontWeight: '600'
-              }}>产量与环境关系分析</span>}
-              hoverable
-            >
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ReactECharts option={yieldTempChartOption} style={{ height: '100%' }} />
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col span={12}>
-            <Card 
-              style={chartCardStyle}
-              title={<span style={{ 
-                background: THEME_COLORS.gradients[0],
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '18px',
-                fontWeight: '600'
-              }}>品种类型详细分布</span>}
-              hoverable
-            >
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={data.detailedTypeData.flatMap(type => 
-                      type.subtypes.map(subtype => ({
-                        category: type.name,
-                        name: subtype.name,
-                        count: subtype.count
-                      }))
-                    )}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="count" name="数量" fill={CHART_COLORS.primary} />
+                    <Bar dataKey="sugar" name="糖度" fill={CHART_COLORS.primary} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -896,23 +878,104 @@ const Welcome: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
                 fontSize: '18px',
                 fontWeight: '600'
-              }}>糖度分布</span>}
+              }}>品种综合评分</span>}
+              hoverable
+            >
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReactECharts option={radarOption} style={{ height: '100%' }} />
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col span={12}>
+            <Card 
+              style={chartCardStyle}
+              title={<span style={{ 
+                background: THEME_COLORS.gradients[0],
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>杂交组合抗病性分布</span>}
+              hoverable
+            >
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReactECharts option={heatmapOption} style={{ height: '100%' }} />
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card 
+              style={chartCardStyle}
+              title={<span style={{ 
+                background: THEME_COLORS.gradients[0],
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>糖度与产量关系</span>}
+              hoverable
+            >
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReactECharts option={scatterOption} style={{ height: '100%' }} />
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col span={12}>
+            <Card 
+              style={chartCardStyle}
+              title={<span style={{ 
+                background: THEME_COLORS.gradients[0],
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>杂交组合来源关系</span>}
+              hoverable
+            >
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReactECharts option={sankeyOption} style={{ height: '100%' }} />
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card 
+              style={chartCardStyle}
+              title={<span style={{ 
+                background: THEME_COLORS.gradients[0],
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>不同表格中相同品种的特性对比</span>}
               hoverable
             >
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={data.sweetnessData}
+                    data={crossTableCompareData}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
-                    <XAxis dataKey="range" />
-                    <YAxis yAxisId="left" orientation="left" stroke={CHART_COLORS.primary} />
-                    <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.secondary} />
+                    <XAxis dataKey="name" />
+                    <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="count" name="数量" fill={CHART_COLORS.primary} />
-                    <Line yAxisId="right" type="monotone" dataKey="percentage" name="占比(%)" stroke={CHART_COLORS.secondary} />
+                    <Bar dataKey="sugar" name="糖度(°Bx)" fill={CHART_COLORS.primary} />
+                    <Bar dataKey="yield" name="产量" fill={CHART_COLORS.secondary} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

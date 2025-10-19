@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from '@umijs/max';
 import * as dayjs from 'dayjs';
 
-interface HybridRecord {
+interface HybridRecords {
   key: string;
   sowingNumber: string;
   hybridizationNumber: string;
@@ -43,8 +43,8 @@ interface HybridRecord {
 }
 
 const HybridRecord: React.FC = () => {
-  const [hybridList, setHybridList] = useState<HybridRecord[]>([]);
-  const [filteredList, setFilteredList] = useState<HybridRecord[]>([]);
+  const [hybridList, setHybridList] = useState<HybridRecords[]>([]);
+  const [filteredList, setFilteredList] = useState<HybridRecords[]>([]);
   const location = useLocation();
   const sowingNumberParam = useMemo(() => new URLSearchParams(location.search).get('sowingNumber'), [location.search]);
   const [importModalOpen, setImportModalOpen] = useState(false);

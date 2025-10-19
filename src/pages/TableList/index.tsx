@@ -657,14 +657,14 @@ const TableList: React.FC = () => {
           // 显示缓存提示（仅在首次加载时显示）
           const isFirstLoad = !localStorage.getItem('cache_notice_shown');
           if (isFirstLoad) {
-            message.info('数据已从缓存加载，如需最新数据请点击"刷新数据"按钮', 3);
+            message.info('数据加载完毕,如需最新数据请点击"刷新数据"按钮', 3);
             localStorage.setItem('cache_notice_shown', 'true');
           }
           return;
         }
       }
 
-      console.log('从服务器加载数据');
+      // console.log('从服务器加载数据');
       const token1 = localStorage.getItem('token');
       const response = await fetch('/api/seed/getSeed', {
         method: 'GET',

@@ -76,7 +76,7 @@ export default defineConfig({
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu
    */
-  title: 'Breeding Platform',
+  title: '深溯育种云平台',
   layout: {
     locale: true,
     ...defaultSettings,

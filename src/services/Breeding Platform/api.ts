@@ -437,106 +437,18 @@ export async function getDashboardStatistics(options?: { [key: string]: any }) {
   });
 }
 
-/** 获取品种类型分布数据 GET /api/dashboard/variety-distribution */
-export async function getVarietyDistribution(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<Array<{
-    name: string;
-    value: number;
-    subTypes: string;
-  }>>('/api/dashboard/variety-distribution', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
-
-/** 获取年度引种趋势数据 GET /api/dashboard/introduction-trend */
-export async function getIntroductionTrend(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<Array<{
-    year: string;
-    count: number;
-    success: number;
-    rate: number;
-    spring: number;
-    summer: number;
-    autumn: number;
-    winter: number;
-  }>>('/api/dashboard/introduction-trend', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
-
-/** 获取品种性能评估数据 GET /api/dashboard/performance */
-export async function getPerformanceData(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<Array<{
-    subject: string;
-    A: number;
-    B: number;
-    C: number;
-    fullMark: number;
-  }>>('/api/dashboard/performance', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
-
-/** 获取生长周期数据 GET /api/dashboard/growth-cycle */
-export async function getGrowthCycleData(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<Array<{
-    name: string;
-    西瓜: number;
-    甜瓜: number;
-    南瓜: number;
-    黄瓜: number;
-  }>>('/api/dashboard/growth-cycle', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
-
-/** 获取产量与环境关系数据 GET /api/dashboard/yield-environment */
-export async function getYieldEnvironmentData(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<Array<{
-    temperature: number;
-    humidity: number;
-    yield: number;
-    name: string;
-  }>>('/api/dashboard/yield-environment', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
-
-/** 获取地域品种分布数据 GET /api/dashboard/regional-distribution */
+/** 获取地域品种分布数据 GET /api/Data/type */
 export async function getRegionalDistribution(options?: { [key: string]: any }) {
   const token = localStorage.getItem('token');
-  return request<Array<{
-    name: string;
-    varieties: Array<{
-      name: string;
+  return request<{
+    type: number;
+    code: string;
+    msg: string;
+    data: Array<{
+      type: string;
       count: number;
     }>;
-  }>>('/api/dashboard/regional-distribution', {
+  }>('/api/Data/type', {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`
@@ -545,23 +457,6 @@ export async function getRegionalDistribution(options?: { [key: string]: any }) 
   });
 }
 
-/** 获取品种类型详细分布数据 GET /api/dashboard/detailed-types */
-export async function getDetailedTypes(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<Array<{
-    name: string;
-    subtypes: Array<{
-      name: string;
-      count: number;
-    }>;
-  }>>('/api/dashboard/detailed-types', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
 
 /** 获取糖度分布数据 GET /api/dashboard/sweetness-distribution */
 export async function getSweetnessDistribution(options?: { [key: string]: any }) {
@@ -579,75 +474,95 @@ export async function getSweetnessDistribution(options?: { [key: string]: any })
   });
 }
 
-/** 获取所有仪表板数据 GET /api/dashboard/all */
-export async function getAllDashboardData(options?: { [key: string]: any }) {
+
+// ==================== 新增：图表数据接口占位（后端待实现） ====================
+
+/** 品种糖度对比 GET /api/Data/sugar */
+export async function getVarietySugarComparison(options?: { [key: string]: any }) {
   const token = localStorage.getItem('token');
   return request<{
-    statistics: {
-      totalVarieties: number;
-      newThisYear: number;
-      seedReserves: number;
-      successRate: number;
-    };
-    varietyDistribution: Array<{
-      name: string;
-      value: number;
-      subTypes: string;
-    }>;
-    introductionTrend: Array<{
-      year: string;
-      count: number;
-      success: number;
-      rate: number;
-      spring: number;
-      summer: number;
-      autumn: number;
-      winter: number;
-    }>;
-    performanceData: Array<{
-      subject: string;
-      A: number;
-      B: number;
-      C: number;
-      fullMark: number;
-    }>;
-    growthCycleData: Array<{
-      name: string;
-      西瓜: number;
-      甜瓜: number;
-      南瓜: number;
-      黄瓜: number;
-    }>;
-    yieldEnvironmentData: Array<{
-      temperature: number;
-      humidity: number;
-      yield: number;
-      name: string;
-    }>;
-    regionalDistribution: Array<{
-      name: string;
-      varieties: Array<{
-        name: string;
-        count: number;
-      }>;
-    }>;
-    detailedTypes: Array<{
-      name: string;
-      subtypes: Array<{
-        name: string;
-        count: number;
-      }>;
-    }>;
-    sweetnessData: Array<{
-      range: string;
-      count: number;
-      percentage: number;
-    }>;
-  }>('/api/dashboard/all', {
+    type: number;
+    code: string;
+    msg: string;
+    data: Array<{ type: string; sugar: number }>;
+  }>('/api/Data/sugar', {
     method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 品种综合评分（糖度、肉厚、产量、抗性）GET /api/dashboard/composite-scores */
+export async function getVarietyCompositeScores(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<Array<{ name: string; 糖度: number; 肉厚: number; 产量: number; 抗性: number }>>('/api/dashboard/composite-scores', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 杂交组合抗病性分布 GET /api/dashboard/hybrid-disease */
+export async function getHybridDiseaseResistance(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{ diseases: string[]; combinations: string[]; values: Array<[number, number, number]> }>('/api/dashboard/hybrid-disease', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 糖度与产量关系 GET /api/Data/sugarYield2 */
+export async function getSugarYieldPairs(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{
+    type: number;
+    code: string;
+    msg: string;
+    data: Array<{ type: string; sugar: number; yield: number }>;
+  }>('/api/Data/sugarYield2', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 杂交组合来源关系（桑基）GET /api/dashboard/hybrid-sankey */
+export async function getHybridSankey(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{ nodes: Array<{ name: string }>; links: Array<{ source: string; target: string; value: number }> }>('/api/dashboard/hybrid-sankey', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 引种时间分布 GET /api/Data/introductionTime */
+export async function getIntroductionTimeline(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{
+    type: number;
+    code: string;
+    msg: string;
+    data: Array<{ count: number; introductionTime: string }>;
+  }>('/api/Data/introductionTime', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 跨表同品种特性对比 GET /api/Data/sugarYield1 */
+export async function getCrossTableVarietyCompare(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{
+    type: number;
+    code: string;
+    msg: string;
+    data: Array<{ sugar: number; yield: number }>;
+  }>('/api/Data/sugarYield1', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
     ...(options || {}),
   });
 }
