@@ -420,23 +420,6 @@ export async function alipayLogin(body: {
 
 // ==================== 仪表板数据 API ====================
 
-/** 获取仪表板统计数据 GET /api/dashboard/statistics */
-export async function getDashboardStatistics(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<{
-    totalVarieties: number;
-    newThisYear: number;
-    seedReserves: number;
-    successRate: number;
-  }>('/api/dashboard/statistics', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    ...(options || {}),
-  });
-}
-
 /** 获取地域品种分布数据 GET /api/Data/type */
 export async function getRegionalDistribution(options?: { [key: string]: any }) {
   const token = localStorage.getItem('token');
@@ -492,10 +475,21 @@ export async function getVarietySugarComparison(options?: { [key: string]: any }
   });
 }
 
-/** 品种综合评分（糖度、肉厚、产量、抗性）GET /api/dashboard/composite-scores */
+/** 品种综合评分（糖度、肉厚、产量、抗性）GET /api/Data/score */
 export async function getVarietyCompositeScores(options?: { [key: string]: any }) {
   const token = localStorage.getItem('token');
-  return request<Array<{ name: string; 糖度: number; 肉厚: number; 产量: number; 抗性: number }>>('/api/dashboard/composite-scores', {
+  return request<{
+    type: number;
+    code: string;
+    msg: string;
+    data: {
+      yield: number;
+      singleWeight: number;
+      fruitThick: number;
+      sugar: number;
+    };
+    exists: boolean;
+  }>('/api/Data/score', {
     method: 'GET',
     headers: { 'Authorization': `Bearer ${token}` },
     ...(options || {}),
@@ -503,14 +497,14 @@ export async function getVarietyCompositeScores(options?: { [key: string]: any }
 }
 
 /** 杂交组合抗病性分布 GET /api/dashboard/hybrid-disease */
-export async function getHybridDiseaseResistance(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<{ diseases: string[]; combinations: string[]; values: Array<[number, number, number]> }>('/api/dashboard/hybrid-disease', {
-    method: 'GET',
-    headers: { 'Authorization': `Bearer ${token}` },
-    ...(options || {}),
-  });
-}
+// export async function getHybridDiseaseResistance(options?: { [key: string]: any }) {
+//   const token = localStorage.getItem('token');
+//   return request<{ diseases: string[]; combinations: string[]; values: Array<[number, number, number]> }>('/api/dashboard/hybrid-disease', {
+//     method: 'GET',
+//     headers: { 'Authorization': `Bearer ${token}` },
+//     ...(options || {}),
+//   });
+// }
 
 /** 糖度与产量关系 GET /api/Data/sugarYield2 */
 export async function getSugarYieldPairs(options?: { [key: string]: any }) {
@@ -528,14 +522,14 @@ export async function getSugarYieldPairs(options?: { [key: string]: any }) {
 }
 
 /** 杂交组合来源关系（桑基）GET /api/dashboard/hybrid-sankey */
-export async function getHybridSankey(options?: { [key: string]: any }) {
-  const token = localStorage.getItem('token');
-  return request<{ nodes: Array<{ name: string }>; links: Array<{ source: string; target: string; value: number }> }>('/api/dashboard/hybrid-sankey', {
-    method: 'GET',
-    headers: { 'Authorization': `Bearer ${token}` },
-    ...(options || {}),
-  });
-}
+// export async function getHybridSankey(options?: { [key: string]: any }) {
+//   const token = localStorage.getItem('token');
+//   return request<{ nodes: Array<{ name: string }>; links: Array<{ source: string; target: string; value: number }> }>('/api/dashboard/hybrid-sankey', {
+//     method: 'GET',
+//     headers: { 'Authorization': `Bearer ${token}` },
+//     ...(options || {}),
+//   });
+// }
 
 /** 引种时间分布 GET /api/Data/introductionTime */
 export async function getIntroductionTimeline(options?: { [key: string]: any }) {
@@ -561,6 +555,26 @@ export async function getCrossTableVarietyCompare(options?: { [key: string]: any
     msg: string;
     data: Array<{ sugar: number; yield: number }>;
   }>('/api/Data/sugarYield1', {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+    ...(options || {}),
+  });
+}
+
+/** 获取统计数据 GET /api/Data/statistics */
+export async function getStatistics(options?: { [key: string]: any }) {
+  const token = localStorage.getItem('token');
+  return request<{
+    type: number;
+    code: string;
+    msg: string;
+    data: {
+      quantity: number;
+      countYear: number;
+      reserve: number;
+      successRate: number;
+    };
+  }>('/api/Data/statistics', {
     method: 'GET',
     headers: { 'Authorization': `Bearer ${token}` },
     ...(options || {}),

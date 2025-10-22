@@ -10,15 +10,15 @@ import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { 
-  getDashboardStatistics,
   getRegionalDistribution,
   getVarietySugarComparison,
   getVarietyCompositeScores,
-  getHybridDiseaseResistance,
+  // getHybridDiseaseResistance,
   getSugarYieldPairs,
-  getHybridSankey,
+  // getHybridSankey,
   getIntroductionTimeline,
-  getCrossTableVarietyCompare
+  getCrossTableVarietyCompare,
+  getStatistics
 } from '@/services/Breeding Platform/api';
 import { 
   transformVarietyDistributionForPieChart,
@@ -50,9 +50,9 @@ const Welcome: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState({
     statistics: {
-      totalVarieties: 0,
-      newThisYear: 0,
-      seedReserves: 0,
+      quantity: 0,
+      countYear: 0,
+      reserve: 0,
       successRate: 0,
     },
     varietyData: [] as VarietyItem[],
@@ -124,10 +124,34 @@ const Welcome: React.FC = () => {
   };
 
 
+  // 检查是否需要加载数据（一天只加载一次）
+  const shouldLoadData = () => {
+    const today = new Date().toDateString();
+    const lastLoadDate = localStorage.getItem('dashboard_last_load_date');
+    const cachedData = localStorage.getItem('dashboard_cached_data');
+    
+    // 如果今天已经加载过且有缓存数据，则不需要重新加载
+    if (lastLoadDate === today && cachedData) {
+      try {
+        const parsedData = JSON.parse(cachedData);
+        setData(parsedData);
+        return false;
+      } catch (e) {
+        // 缓存数据解析失败，清除缓存并重新加载
+        localStorage.removeItem('dashboard_cached_data');
+        localStorage.removeItem('dashboard_last_load_date');
+      }
+    }
+    
+    return true;
+  };
+
   // 获取所有数据
   const fetchAllData = useCallback(async () => {
     try {
-      setLoading(true);      // 并行获取所有数据
+      setLoading(true);
+      
+      // 并行获取所有数据
       await Promise.all([
         fetchVarietyDistribution(),
         (async () => {
@@ -142,19 +166,27 @@ const Welcome: React.FC = () => {
         (async () => {
           try {
             const res = await getVarietyCompositeScores();
-            if (res) {
-              setData(prev => ({ ...prev, compositeScores: res }));
+            if (res && res.data) {
+              // 将后端数据转换为雷达图需要的格式
+              const transformedData = [{
+                name: '当前品种',
+                糖度: res.data.sugar *100 ,
+                肉厚: res.data.fruitThick *10000 , 
+                产量: res.data.yield  *10000 ,
+                抗性: res.data.singleWeight *1000000000000000000 
+              }];
+              setData(prev => ({ ...prev, compositeScores: transformedData }));
             }
           } catch (e) { /* ignore */ }
         })(),
-        (async () => {
-          try {
-            const res = await getHybridDiseaseResistance();
-            if (res) {
-              setData(prev => ({ ...prev, hybridDisease: res }));
-            }
-          } catch (e) { /* ignore */ }
-        })(),
+        // (async () => {
+        //   try {
+        //     const res = await getHybridDiseaseResistance();
+        //     if (res) {
+        //       setData(prev => ({ ...prev, hybridDisease: res }));
+        //     }
+        //   } catch (e) { /* ignore */ }
+        // })(),
         (async () => {
           try {
             const res = await getSugarYieldPairs();
@@ -164,14 +196,14 @@ const Welcome: React.FC = () => {
             }
           } catch (e) { /* ignore */ }
         })(),
-        (async () => {
-          try {
-            const res = await getHybridSankey();
-            if (res) {
-              setData(prev => ({ ...prev, sankeyNodes: res.nodes, sankeyLinks: res.links }));
-            }
-          } catch (e) { /* ignore */ }
-        })(),
+        // (async () => {
+        //   try {
+        //     const res = await getHybridSankey();
+        //     if (res) {
+        //       setData(prev => ({ ...prev, sankeyNodes: res.nodes, sankeyLinks: res.links }));
+        //     }
+        //   } catch (e) { /* ignore */ }
+        // })(),
         (async () => {
           try {
             const res = await getIntroductionTimeline();
@@ -190,9 +222,28 @@ const Welcome: React.FC = () => {
             }
           } catch (e) { /* ignore */ }
         })(),
+        (async () => {
+          try {
+            const res = await getStatistics();
+            if (res && res.data) {
+              setData(prev => ({ 
+                ...prev, 
+                statistics: {
+                  quantity: res.data.quantity,
+                  countYear: res.data.countYear,
+                  reserve: res.data.reserve,
+                  successRate: res.data.successRate
+                }
+              }));
+            }
+          } catch (e) { /* ignore */ }
+        })(),
       ]);
       
-      // console.log('所有数据获取完成');
+      // 数据加载完成后，缓存到localStorage
+      const today = new Date().toDateString();
+      localStorage.setItem('dashboard_last_load_date', today);
+      
     } catch (error) {
       console.error('获取仪表板数据失败:', error);
       message.error('获取数据失败，请刷新页面重试');
@@ -201,10 +252,20 @@ const Welcome: React.FC = () => {
     }
   }, []);
 
+  // 缓存数据到localStorage
+  useEffect(() => {
+    if (data.varietyData.length > 0 || data.varietySugarData.length > 0) {
+      localStorage.setItem('dashboard_cached_data', JSON.stringify(data));
+    }
+  }, [data]);
+
   // 刷新数据
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
+      // 清除缓存，强制重新加载
+      localStorage.removeItem('dashboard_cached_data');
+      localStorage.removeItem('dashboard_last_load_date');
       await fetchAllData();
       message.success('数据已刷新');
     } catch (error) {
@@ -216,21 +277,13 @@ const Welcome: React.FC = () => {
 
   // 组件挂载时获取数据
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
-
-  // 设置定时刷新（每5分钟）
-  useEffect(() => {
-    const interval = setInterval(() => {
+    if (shouldLoadData()) {
       fetchAllData();
-    }, 5 * 60 * 1000); // 5分钟
-
-    return () => clearInterval(interval);
+    } else {
+      setLoading(false);
+    }
   }, [fetchAllData]);
 
-  // 删除旧的产量与温度关系图表配置（已由糖度-产量散点图替换）
-
-  // 这些数据现在从后端获取，不再使用静态数据
 
   // 更新主题配色
   const THEME_COLORS = {
@@ -427,48 +480,58 @@ const Welcome: React.FC = () => {
 
   // 2) 雷达图：品种综合评分（ECharts）
   const radarOption: EChartsOption = {
-    title: { text: '品种综合评分', left: 'center', textStyle: { color: '#2E7D32' } },
     tooltip: {},
-    legend: { data: data.compositeScores.map(i => i.name), bottom: 0 },
+    legend: { 
+      data: data.compositeScores.map(i => i.name), 
+      top: 20, // 将图例移到顶部
+      left: 'center' // 图例居中显示
+    },
     radar: {
       indicator: [
-        { name: '糖度', max: 20 },
-        { name: '肉厚', max: 10 },
-        { name: '产量', max: 100 },
-        { name: '抗性', max: 10 }
+        { name: '糖度', max: 8 },
+        { name: '肉厚', max: 8 },
+        { name: '产量', max: 8 },
+        { name: '抗性', max: 8 }
       ],
-      splitArea: { areaStyle: { color: ['#F1F8E9', '#E8F5E9'] } }
+      splitArea: { areaStyle: { color: ['#F1F8E9', '#E8F5E9']} },
+      center: ['50%', '55%'], // 调整雷达图位置，为顶部图例留出空间
+      radius: '65%' // 稍微减小半径
     },
     series: [
       {
         type: 'radar',
-        data: data.compositeScores.map(s => ({ value: [s.糖度, s.肉厚, s.产量, s.抗性], name: s.name })),
-        areaStyle: { opacity: 0.2 }
+        data: data.compositeScores.map(s => ({ 
+          value: [s.糖度, s.肉厚, s.产量, s.抗性], 
+          name: s.name,
+          itemStyle: { color: '#2E7D32' },
+          areaStyle: { color: '#2E7D32', opacity: 0.3 }
+        })),
+        areaStyle: { opacity: 0.5 }
       }
     ]
   };
 
-  // 3) 热力图：杂交组合抗病性分布（ECharts）
-  const diseases = data.hybridDisease.diseases;
-  const combinations = data.hybridDisease.combinations;
-  const heatmapData = data.hybridDisease.values;
-  const heatmapOption: EChartsOption = {
-    title: { text: '杂交组合抗病性分布', left: 'center', textStyle: { color: '#2E7D32' } },
-    tooltip: { position: 'top' },
-    grid: { height: '60%', top: '10%' },
-    xAxis: { type: 'category', data: diseases, splitArea: { show: true } },
-    yAxis: { type: 'category', data: combinations, splitArea: { show: true } },
-    visualMap: { min: 0, max: 10, calculable: true, orient: 'horizontal', left: 'center', bottom: '5%' },
-    series: [
-      {
-        name: '抗病强度',
-        type: 'heatmap',
-        data: heatmapData,
-        label: { show: false },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
-      }
-    ]
-  };
+  // // 3) 热力图：杂交组合抗病性分布（ECharts）
+  // const diseases = data.hybridDisease.diseases;
+  // const combinations = data.hybridDisease.combinations;
+  // const heatmapData = data.hybridDisease.values;
+  // const heatmapOption: EChartsOption = {
+  //   title: { text: '杂交组合抗病性分布', left: 'center', textStyle: { color: '#2E7D32' } },
+  //   tooltip: { position: 'top' },
+  //   grid: { height: '60%', top: '10%' },
+  //   xAxis: { type: 'category', data: diseases, splitArea: { show: true } },
+  //   yAxis: { type: 'category', data: combinations, splitArea: { show: true } },
+  //   visualMap: { min: 0, max: 10, calculable: true, orient: 'horizontal', left: 'center', bottom: '5%' },
+  //   series: [
+  //     {
+  //       name: '抗病强度',
+  //       type: 'heatmap',
+  //       data: heatmapData,
+  //       label: { show: false },
+  //       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } }
+  //     }
+  //   ]
+  // };
 
   // 4) 散点图：糖度与产量关系（ECharts）
   const sugarYieldScatterData = data.sugarYieldPairs || [];
@@ -491,21 +554,21 @@ const Welcome: React.FC = () => {
   };
 
   // 5) 桑基图：杂交组合来源关系（ECharts）
-  const sankeyNodes = data.sankeyNodes;
-  const sankeyLinks = data.sankeyLinks;
-  const sankeyOption: EChartsOption = {
-    title: { text: '杂交组合来源关系', left: 'center', textStyle: { color: '#2E7D32' } },
-    tooltip: { trigger: 'item' },
-    series: [
-      {
-        type: 'sankey',
-        data: sankeyNodes,
-        links: sankeyLinks,
-        emphasis: { focus: 'adjacency' },
-        lineStyle: { color: 'gradient', curveness: 0.5 }
-      }
-    ]
-  };
+  // const sankeyNodes = data.sankeyNodes;
+  // const sankeyLinks = data.sankeyLinks;
+  // const sankeyOption: EChartsOption = {
+  //   title: { text: '杂交组合来源关系', left: 'center', textStyle: { color: '#2E7D32' } },
+  //   tooltip: { trigger: 'item' },
+  //   series: [
+  //     {
+  //       type: 'sankey',
+  //       data: sankeyNodes,
+  //       links: sankeyLinks,
+  //       emphasis: { focus: 'adjacency' },
+  //       lineStyle: { color: 'gradient', curveness: 0.5 }
+  //     }
+  //   ]
+  // };
 
   // 6) 时间轴图：引种时间分布（ECharts）
   const introTimeline = data.introductionTimeline || [];
@@ -673,7 +736,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>品种总数</span>}
-                value={data.statistics.totalVarieties} 
+                value={data.statistics.quantity} 
                 suffix="个"
                 valueStyle={{ 
                   color: '#2E7D32', 
@@ -690,7 +753,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>本年度新增</span>}
-                value={data.statistics.newThisYear} 
+                value={data.statistics.countYear} 
                 suffix="个"
                 valueStyle={{ 
                   color: '#43A047', 
@@ -707,7 +770,7 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>留种数量</span>}
-                value={data.statistics.seedReserves} 
+                value={data.statistics.reserve} 
                 suffix="份"
                 valueStyle={{ 
                   color: '#66BB6A', 
@@ -724,8 +787,10 @@ const Welcome: React.FC = () => {
             <Card style={statisticCardStyle} hoverable styles={{ body: { padding: 0 } }}>
               <Statistic 
                 title={<span style={{ fontSize: '18px', color: '#1B5E20', fontWeight: '500' }}>成功率</span>}
-                value={data.statistics.successRate} 
-                suffix="%"
+                 value={typeof data.statistics.successRate === 'string' 
+                  ? parseFloat(data.statistics.successRate).toFixed(2)
+                  : Number(data.statistics.successRate).toFixed(2)
+                 }
                 precision={1}
                 valueStyle={{ 
                   color: '#81C784', 
@@ -891,7 +956,7 @@ const Welcome: React.FC = () => {
         </Row>
 
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col span={12}>
+          {/* <Col span={12}>
             <Card 
               style={chartCardStyle}
               title={<span style={{ 
@@ -906,6 +971,36 @@ const Welcome: React.FC = () => {
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ReactECharts option={heatmapOption} style={{ height: '100%' }} />
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </Col> */}
+                    <Col span={12}>
+            <Card 
+              style={chartCardStyle}
+              title={<span style={{ 
+                background: THEME_COLORS.gradients[0],
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>相同品种的特性对比</span>}
+              hoverable
+            >
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={crossTableCompareData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="sugar" name="糖度(°Bx)" fill={CHART_COLORS.primary} />
+                    <Bar dataKey="yield" name="产量" fill={CHART_COLORS.secondary} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </Card>
@@ -931,7 +1026,7 @@ const Welcome: React.FC = () => {
           </Col>
         </Row>
 
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        {/* <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
           <Col span={12}>
             <Card 
               style={chartCardStyle}
@@ -960,7 +1055,7 @@ const Welcome: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
                 fontSize: '18px',
                 fontWeight: '600'
-              }}>不同表格中相同品种的特性对比</span>}
+              }}>相同品种的特性对比</span>}
               hoverable
             >
               <div style={{ height: 300 }}>
@@ -981,7 +1076,7 @@ const Welcome: React.FC = () => {
               </div>
             </Card>
           </Col>
-        </Row>
+        </Row> */}
       </Card>
 
       <Card style={{ ...cardStyle, marginTop: 16 }} hoverable>
