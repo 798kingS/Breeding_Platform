@@ -1,4 +1,4 @@
-//自交系纯化页面
+//自交分离页面
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { useRef, useState, useEffect } from 'react';
@@ -299,6 +299,76 @@ const PurificationList: React.FC = () => {
     }
   };
 
+  // 转入种质资源管理
+  const handleTransferToSeed = async (record: PurificationRecord) => {
+    const seedNumber = record.code || record.pedigreeNumber;
+    if (!seedNumber) {
+      message.warning('缺少编号，无法转入');
+      return;
+    }
+
+    try {
+      // 先检查是否已存在
+      const checkResp = await fetch(`/api/seed/check?seedNumber=${encodeURIComponent(seedNumber)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const checkResult = await checkResp.json();
+      if (checkResp.ok && checkResult?.exists) {
+        message.warning(checkResult?.message || '该编号已在种质资源库中');
+        return;
+      }
+
+      const transferPayload = {
+        varietyName: record.name || '',
+        type: record.type || '',
+        introductionYear: record.introductionTime ? moment(record.introductionTime).format('YYYY') : '',
+        source: record.method || '',
+        breedingType: record.isRegular === '是' ? 'regular' : record.isRegular === '否' ? 'pure' : (record.isRegular || ''),
+        seedNumber,
+        plantingYear: '',
+        resistance: '',
+        fruitCharacteristics: '',
+        floweringPeriod: '',
+        fruitCount: 0,
+        yield: 0,
+        fruitShape: '',
+        skinColor: '',
+        fleshColor: '',
+        singleFruitWeight: 0,
+        fleshThickness: 0,
+        sugarContent: 0,
+        texture: '',
+        overallTaste: '',
+        combiningAbility: '',
+        hybridization: '',
+        saveTime: '',
+      };
+
+      const res = await fetch('/api/seed/addseed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(transferPayload),
+      });
+
+      const result = await res.json();
+      if (res.ok && (result?.msg === 'SUCCESS' || result?.code === 200 || !result?.success === false)) {
+        message.success('已转入种质资源管理');
+      } else {
+        message.error(result?.msg || result?.message || '转入失败');
+      }
+    } catch (error) {
+      console.error('转入种质资源管理失败:', error);
+      message.error('转入失败，请重试');
+    }
+  };
+
   const columns: ProColumns<PurificationRecord>[] = [
     {
       title: '系谱编号',
@@ -380,6 +450,13 @@ const PurificationList: React.FC = () => {
           onClick={() => handleSowing(record)}
         >
           播种
+        </Button>,
+        <Button
+          key="transfer"
+          type="link"
+          onClick={() => handleTransferToSeed(record)}
+        >
+          转入种质资源管理
         </Button>,
         <Button
           key="delete"

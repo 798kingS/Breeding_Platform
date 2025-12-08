@@ -65,6 +65,27 @@ export async function getInitialState(): Promise<{
 
 // ProLayout 支持的api https://procomponents.ant.design/components/layout
 export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) => {
+  // 递归为菜单注入自定义图片/图标（在路由里配置 iconPath 即可）
+  const attachCustomIcons = (menuData: any[]): any[] =>
+    menuData.map((item) => {
+      const icon =
+        item.iconPath
+          ? (
+            <img
+              src={item.iconPath}
+              alt={item.name}
+              style={{ width: 18, height: 18, objectFit: 'contain' }}
+            />
+          )
+          : item.icon;
+
+      return {
+        ...item,
+        icon,
+        children: item.children ? attachCustomIcons(item.children) : undefined,
+      };
+    });
+
   return {
     actionsRender: () => [<Question key="doc" />, <SelectLang key="SelectLang" />],
     avatarProps: {
@@ -103,6 +124,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
       },
     ],
     menuHeaderRender: undefined,
+    menuDataRender: (menuData) => attachCustomIcons(menuData || []),
     // 自定义 403 页面
     // unAccessible: <div>unAccessible</div>,
     // 增加一个 loading 的状态

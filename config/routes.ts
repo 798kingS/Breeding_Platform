@@ -45,7 +45,8 @@ export default [
   {
     path: '/welcome',
     name: '欢迎',
-    icon: 'smile',
+    // icon: 'HomeOutlined',
+    iconPath: '/icons/欢迎.svg',
     component: './Welcome',
 
   },
@@ -69,36 +70,8 @@ export default [
     ],
   },
   {
-    name: '种质资源管理',
-    icon: 'database',
-    path: '/germplasm',
-    routes: [
-      {
-        name: '种质资源库',
-        icon: 'experiment',
-        path: '/germplasm/list',
-        component: './TableList',
-
-      },
-     {
-        name: '播种计划表',
-        icon: 'fileSearch',
-        path: '/germplasm/sowing-records',
-        component: './SowingRecords',
-
-      },
-      {
-        name: '留种记录',
-        icon: 'seedling',
-        path: '/germplasm/saved-seeds',
-        component: './SavedSeeds',
-
-      },
-    ],
-  },
-  {
     name: '智能育小星',
-    icon: 'robot',
+    iconPath: '/icons/机器人.svg',
     path: '/smart-ai',
     routes: [
       {
@@ -150,9 +123,38 @@ export default [
       },
     ],
   },
+    {
+    name: '种质资源管理',
+    // icon: 'database',
+    iconPath: '/icons/种质资源管理.svg',
+    path: '/germplasm',
+    routes: [
+      {
+        name: '种质资源库',
+        iconPath: '/icons/种质资源库.svg',
+        path: '/germplasm/list',
+        component: './TableList',
+
+      },
+     {
+        name: '播种计划表',
+        iconPath: '/icons/播种计划表.svg',
+        path: '/germplasm/sowing-records',
+        component: './SowingRecords',
+
+      },
+      {
+        name: '留种记录',
+        iconPath: '/icons/留种记录.svg',
+        path: '/germplasm/saved-seeds',
+        component: './SavedSeeds',
+
+      },
+    ],
+  },
   {
     name: '引种管理',
-    icon: 'table',
+    iconPath: '/icons/引种.svg',
     path: '/introduction',
     routes: [
       {
@@ -173,18 +175,18 @@ export default [
         name: '考种记录',
         icon: 'fileSearch',
         path: '/introduction/test',
-        component: './Introduction/Test',
+        component: './Introduction/TestSpecies',
 
       },
     ],
   },
   {
     name: '自交系纯化管理',
-    icon: 'experiment',
+    iconPath: '/icons/自交系纯化.svg',
     path: '/purification',
     routes: [
       {
-        name: '自交系纯化',
+        name: '自交分离',
         path: '/purification/list',
         component: './Purification',
 
@@ -211,7 +213,7 @@ export default [
   },
    {
     name: '杂交管理',
-    icon: 'fileText',
+    iconPath: '/icons/杂交.svg',
     path: '/Hybrid',
     routes: [
       {
@@ -220,15 +222,74 @@ export default [
         path: '/Hybrid/HybridRecord',
         component: './Hybrid/HybridRecord',
       },
+      // {
+      //   name: '杂交计划配组',
+      //   icon: 'import',
+      //   path: '/Hybrid/HybridPlan',
+      //   component: './Hybrid/HybridPlan',
+      // },
+    ],
+  },
+
+    {
+    name: '种质创制',
+    iconPath: '/icons/种质创制.svg',
+    path: '/germplasm-creation',
+    routes: [
             {
-        name: '杂交计划配组',
-        icon: 'import',
-        path: '/Hybrid/HybridPlan',
-        component: './Hybrid/HybridPlan',
+        name: '诱变',
+        icon: 'fire',
+        path: 'mutation',
+        routes: [
+          {
+            name: '播种计划',
+            icon: 'seedling',
+            path: 'sowing',
+            component: './GermplasmCreation/MutationInduction/Sowing',
+
+          },
+          {
+            name: '考种记载表',
+            icon: 'fileSearch',
+            path: 'test-species',
+            component: './GermplasmCreation/MutationInduction/TestSpecies'
+          },
+          {
+            name: '留种计划',
+            icon: 'save',
+            path: 'save-seeds',
+            component: './GermplasmCreation/MutationInduction/Saved'
+          }
+        ],
+      },
+      {
+        name: '多亲回交',
+        icon: 'fire',
+        path: 'multi-parent-backcross',
+        routes: [
+          {
+            name: '播种计划',
+            path: 'sowing',
+            component: './GermplasmCreation/MultiParentBackcross/Sowing',
+
+          },
+          {
+            name: '考种记载表',
+            path: 'test-species',
+            component: './GermplasmCreation/MultiParentBackcross/TestSpecies',
+
+          },
+          {
+            name: '留种计划',
+            icon: 'save',
+            path: 'save-seeds',
+            component: './GermplasmCreation/MultiParentBackcross/Saved',
+
+          },
+        ],
       },
     ],
   },
-  
   {
     path: '/',
     redirect: '/welcome',

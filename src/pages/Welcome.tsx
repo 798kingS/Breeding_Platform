@@ -124,14 +124,76 @@ const Welcome: React.FC = () => {
   };
 
 
-  // 检查是否需要加载数据（一天只加载一次）
+  // 检查数据是否需要刷新（检查是否超过指定时间未刷新）
+  const shouldRefreshData = () => {
+    const lastLoadDate = localStorage.getItem('dashboard_last_load_date');
+    const cachedData = localStorage.getItem('dashboard_cached_data');
+    
+    // 如果没有缓存数据或加载日期，需要加载
+    if (!lastLoadDate || !cachedData) {
+      return true;
+    }
+    
+    try {
+      // 兼容处理：如果存储的是日期字符串（旧格式），转换为时间戳
+      let lastLoadTime: number;
+      if (lastLoadDate.includes('T') || lastLoadDate.includes('Z')) {
+        // ISO 格式时间戳
+        lastLoadTime = new Date(lastLoadDate).getTime();
+      } else {
+        // 旧格式：日期字符串，转换为今天的时间戳
+        const today = new Date().toDateString();
+        if (lastLoadDate === today) {
+          // 如果是今天，使用当前时间减去1小时（假设是今天加载的）
+          lastLoadTime = Date.now() - 60 * 60 * 1000;
+        } else {
+          // 如果不是今天，需要刷新
+          return true;
+        }
+      }
+      
+      const now = Date.now();
+      // 设置自动刷新间隔为30分钟（1800000毫秒），可以根据需要调整
+      const REFRESH_INTERVAL = 30 * 60 * 1000; // 30分钟
+      
+      // 如果超过刷新间隔，需要刷新
+      if (now - lastLoadTime > REFRESH_INTERVAL) {
+        return true;
+      }
+      
+      // 如果今天已经加载过且在刷新间隔内，使用缓存数据
+      const parsedData = JSON.parse(cachedData);
+      setData(parsedData);
+      return false;
+    } catch (e) {
+      // 缓存数据解析失败，清除缓存并重新加载
+      localStorage.removeItem('dashboard_cached_data');
+      localStorage.removeItem('dashboard_last_load_date');
+      return true;
+    }
+  };
+
+  // 检查是否需要加载数据（一天只加载一次）- 保留用于初始加载
   const shouldLoadData = () => {
     const today = new Date().toDateString();
     const lastLoadDate = localStorage.getItem('dashboard_last_load_date');
     const cachedData = localStorage.getItem('dashboard_cached_data');
     
+    // 兼容处理：检查是否是今天加载的
+    let isTodayLoaded = false;
+    if (lastLoadDate) {
+      if (lastLoadDate.includes('T') || lastLoadDate.includes('Z')) {
+        // ISO 格式时间戳
+        const loadDate = new Date(lastLoadDate).toDateString();
+        isTodayLoaded = loadDate === today;
+      } else {
+        // 旧格式：日期字符串
+        isTodayLoaded = lastLoadDate === today;
+      }
+    }
+    
     // 如果今天已经加载过且有缓存数据，则不需要重新加载
-    if (lastLoadDate === today && cachedData) {
+    if (isTodayLoaded && cachedData) {
       try {
         const parsedData = JSON.parse(cachedData);
         setData(parsedData);
@@ -240,9 +302,9 @@ const Welcome: React.FC = () => {
         })(),
       ]);
       
-      // 数据加载完成后，缓存到localStorage
-      const today = new Date().toDateString();
-      localStorage.setItem('dashboard_last_load_date', today);
+      // 数据加载完成后，缓存到localStorage，保存时间戳用于自动刷新检测
+      const now = new Date();
+      localStorage.setItem('dashboard_last_load_date', now.toISOString());
       
     } catch (error) {
       console.error('获取仪表板数据失败:', error);
@@ -275,6 +337,92 @@ const Welcome: React.FC = () => {
     }
   };
 
+  // 自动刷新数据（静默刷新，不显示加载状态）
+  const autoRefreshData = useCallback(async () => {
+    if (shouldRefreshData()) {
+      try {
+        // 静默刷新，不显示加载状态
+        await Promise.all([
+          fetchVarietyDistribution(),
+          (async () => {
+            try {
+              const res = await getVarietySugarComparison();
+              if (res && res.data) {
+                const mappedData = res.data.map(item => ({ name: item.type, sugar: item.sugar }));
+                setData(prev => ({ ...prev, varietySugarData: mappedData }));
+              }
+            } catch (e) { /* ignore */ }
+          })(),
+          (async () => {
+            try {
+              const res = await getVarietyCompositeScores();
+              if (res && res.data) {
+                const transformedData = [{
+                  name: '当前品种',
+                  糖度: res.data.sugar *100 ,
+                  肉厚: res.data.fruitThick *10000 , 
+                  产量: res.data.yield  *10000 ,
+                  抗性: res.data.singleWeight *1000000000000000000 
+                }];
+                setData(prev => ({ ...prev, compositeScores: transformedData }));
+              }
+            } catch (e) { /* ignore */ }
+          })(),
+          (async () => {
+            try {
+              const res = await getSugarYieldPairs();
+              if (res && res.data) {
+                const mappedData = res.data.map(item => ({ name: item.type, sugar: item.sugar, yield: item.yield }));
+                setData(prev => ({ ...prev, sugarYieldPairs: mappedData }));
+              }
+            } catch (e) { /* ignore */ }
+          })(),
+          (async () => {
+            try {
+              const res = await getIntroductionTimeline();
+              if (res && res.data) {
+                const mappedData = res.data.map(item => ({ date: item.introductionTime, count: item.count }));
+                setData(prev => ({ ...prev, introductionTimeline: mappedData }));
+              }
+            } catch (e) { /* ignore */ }
+          })(),
+          (async () => {
+            try {
+              const res = await getCrossTableVarietyCompare();
+              if (res && res.data) {
+                const mappedData = res.data.map((item, index) => ({ name: `品种${index + 1}`, sugar: item.sugar, yield: item.yield }));
+                setData(prev => ({ ...prev, crossTableCompare: mappedData }));
+              }
+            } catch (e) { /* ignore */ }
+          })(),
+          (async () => {
+            try {
+              const res = await getStatistics();
+              if (res && res.data) {
+                setData(prev => ({ 
+                  ...prev, 
+                  statistics: {
+                    quantity: res.data.quantity,
+                    countYear: res.data.countYear,
+                    reserve: res.data.reserve,
+                    successRate: res.data.successRate
+                  }
+                }));
+              }
+            } catch (e) { /* ignore */ }
+          })(),
+        ]);
+        
+        // 更新刷新时间戳
+        const now = new Date();
+        localStorage.setItem('dashboard_last_load_date', now.toISOString());
+      } catch (error) {
+        console.error('自动刷新数据失败:', error);
+        // 自动刷新失败时不显示错误提示，避免打扰用户
+      }
+    }
+  }, []);
+
   // 组件挂载时获取数据
   useEffect(() => {
     if (shouldLoadData()) {
@@ -283,6 +431,25 @@ const Welcome: React.FC = () => {
       setLoading(false);
     }
   }, [fetchAllData]);
+
+  // 自动检测并刷新数据
+  useEffect(() => {
+    // 设置自动检测间隔为5分钟（300000毫秒）
+    const AUTO_CHECK_INTERVAL = 5 * 60 * 1000; // 5分钟检查一次
+    
+    // 立即检查一次
+    autoRefreshData();
+    
+    // 设置定时器，定期检查并自动刷新
+    const intervalId = setInterval(() => {
+      autoRefreshData();
+    }, AUTO_CHECK_INTERVAL);
+    
+    // 清理定时器
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [autoRefreshData]);
 
 
   // 更新主题配色

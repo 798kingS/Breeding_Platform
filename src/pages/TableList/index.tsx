@@ -14,8 +14,9 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { useIntl, useNavigate } from '@umijs/max';
-import { Button, Drawer, message, Upload, Modal, Table, Space, Input, InputNumber, Popconfirm, Typography, Form } from 'antd';
+import { Button, Drawer, message, Upload, Modal, Table, Space, Input, InputNumber, Popconfirm, Typography, Form, Select } from 'antd';
 import React, { useRef, useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import type { FormValueType } from './components/UpdateForm';
 import UpdateForm from './components/UpdateForm';
 
@@ -175,6 +176,12 @@ const TableList: React.FC = () => {
   const [localPhoto1, setLocalPhoto1] = useState<string>('');
   const [localPhoto2, setLocalPhoto2] = useState<string>('');
 
+  // 详情弹窗年份选择相关状态
+  const [selectedYear, setSelectedYear] = useState<string | null>(null);
+  const [yearData, setYearData] = useState<API.RuleListItem | null>(null);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [loadingYearData, setLoadingYearData] = useState<boolean>(false);
+
   const handleEdit = (record: any) => {
     form.setFieldsValue({
       code: record.code,
@@ -225,6 +232,10 @@ const TableList: React.FC = () => {
     children: React.ReactNode;
   }
   const token = localStorage.getItem('token');
+  // 待配组列表数据，兼容后端未返回时的空数组
+  const pendingHybridList = Array.isArray((currentVariety as any)?.pendingHybridizationList)
+    ? (currentVariety as any).pendingHybridizationList
+    : [];
 
   // 更新可编辑单元格组件
   const EditableCell: React.FC<EditableCellProps> = ({
@@ -498,6 +509,95 @@ const TableList: React.FC = () => {
       }
     } catch (error) {
       message.error('保存失败，请重试');
+    }
+  };
+
+  // 获取可用年份列表
+  const fetchAvailableYears = async (record: API.RuleListItem, callback?: (years: string[]) => void) => {
+    try {
+      const token1 = localStorage.getItem('token');
+      const response = await fetch(`/api/seed/getAvailableYears?varietyName=${encodeURIComponent(record.varietyName || '')}&seedNumber=${encodeURIComponent(record.seedNumber || '')}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token1}`
+        },
+      });
+      const result = await response.json();
+      let years: string[] = [];
+      if (result.code === 200 || result.msg === 'SUCCESS') {
+        if (Array.isArray(result.data)) {
+          years = result.data;
+        } else {
+          // 如果没有接口，使用当前记录的年份作为默认值
+          if (record.plantingYear) years.push(record.plantingYear);
+          if (record.introductionYear && !years.includes(record.introductionYear)) {
+            years.push(record.introductionYear);
+          }
+        }
+      } else {
+        // 如果接口不存在或失败，使用当前记录的年份
+        if (record.plantingYear) years.push(record.plantingYear);
+        if (record.introductionYear && !years.includes(record.introductionYear)) {
+          years.push(record.introductionYear);
+        }
+      }
+      setAvailableYears(years.length > 0 ? years : []);
+      if (callback) {
+        callback(years);
+      }
+    } catch (error) {
+      console.error('获取可用年份失败:', error);
+      // 如果接口不存在或失败，使用当前记录的年份
+      const years: string[] = [];
+      if (record.plantingYear) years.push(record.plantingYear);
+      if (record.introductionYear && !years.includes(record.introductionYear)) {
+        years.push(record.introductionYear);
+      }
+      setAvailableYears(years.length > 0 ? years : []);
+      if (callback) {
+        callback(years.length > 0 ? years : []);
+      }
+    }
+  };
+
+  // 获取指定年份的数据
+  const fetchYearData = async (record: API.RuleListItem, year: string) => {
+    if (!year) {
+      setYearData(null);
+      return;
+    }
+    
+    setLoadingYearData(true);
+    try {
+      const token1 = localStorage.getItem('token');
+      const response = await fetch(`/api/seed/getSeedByYear?varietyName=${encodeURIComponent(record.varietyName || '')}&seedNumber=${encodeURIComponent(record.seedNumber || '')}&year=${encodeURIComponent(year)}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token1}`
+        },
+      });
+      const result = await response.json();
+      if (result.code === 200 || result.msg === 'SUCCESS') {
+        if (result.data) {
+          setYearData(result.data);
+        } else {
+          // 如果没有数据，使用当前记录
+          setYearData(record);
+        }
+      } else {
+        // 如果接口不存在或失败，使用当前记录
+        setYearData(record);
+      }
+    } catch (error) {
+      console.error('获取年份数据失败:', error);
+      // 如果接口不存在或失败，使用当前记录
+      setYearData(record);
+    } finally {
+      setLoadingYearData(false);
     }
   };
 
@@ -830,6 +930,41 @@ const TableList: React.FC = () => {
     }
   };
 
+  const handleExportPendingHybridization = () => {
+    if (!currentVariety) {
+      message.warning('未选择品种');
+      return;
+    }
+    if (!pendingHybridList.length) {
+      message.warning('待配组列表为空');
+      return;
+    }
+
+    try {
+      const rows = pendingHybridList.map((item: any) => ({
+        编号: item.id ?? '',
+        母本编号: item.femaleNumber ?? '',
+        父本编号: item.maleNumber ?? '',
+        母本名称: item.femaleName ?? '',
+        父本名称: item.maleName ?? '',
+        杂交组合: item.hybridization ?? '',
+        配组日期: item.date ?? '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, '待配组列表');
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `${currentVariety.varietyName || '待配组列表'}_${dateStr}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      message.success('待配组列表已导出');
+    } catch (error) {
+      console.error('导出待配组列表失败:', error);
+      message.error('导出失败，请重试');
+    }
+  };
+
   const handleCreateHybridization = async (targetVariety: API.RuleListItem) => {
     if (!currentVariety || !targetVariety) return;
 
@@ -1107,9 +1242,26 @@ const TableList: React.FC = () => {
         <Button
           key="view"
           type="link"
-          onClick={() => {
+          onClick={async () => {
             setCurrentRow(record);
             setShowDetail(true);
+            // 初始化年份选择：获取可用年份列表
+            await fetchAvailableYears(record, async (years) => {
+              // 默认选择当前记录的种植年份或引种年份
+              const defaultYear = record.plantingYear || record.introductionYear || null;
+              if (defaultYear && years.includes(defaultYear)) {
+                setSelectedYear(defaultYear);
+                await fetchYearData(record, defaultYear);
+              } else if (years.length > 0) {
+                // 如果有可用年份但没有匹配的默认年份，选择第一个
+                setSelectedYear(years[0]);
+                await fetchYearData(record, years[0]);
+              } else {
+                // 如果没有可用年份，使用当前记录的数据
+                setSelectedYear(null);
+                setYearData(null);
+              }
+            });
           }}
         >
           查看详情
@@ -1694,11 +1846,30 @@ const TableList: React.FC = () => {
         onClose={() => {
           setCurrentRow(undefined);
           setShowDetail(false);
+          setSelectedYear(null);
+          setYearData(null);
+          setAvailableYears([]);
         }}
         closable={false}
       >
         {currentRow && (
           <>
+            {/* 年份选择器 */}
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{currentRow?.varietyName}</h3>
+              <Select
+                style={{ width: 200 }}
+                placeholder="选择年份"
+                value={selectedYear}
+                onChange={async (year) => {
+                  setSelectedYear(year);
+                  await fetchYearData(currentRow, year);
+                }}
+                options={availableYears.map(year => ({ label: year, value: year }))}
+                loading={loadingYearData}
+              />
+            </div>
+            
             <div style={{ marginBottom: 24 }}>
               <h4 style={{ marginBottom: 16 }}>照片</h4>
               <div style={{
@@ -1711,58 +1882,81 @@ const TableList: React.FC = () => {
                 padding: '16px',
                 backgroundColor: '#fafafa'
               }}>
-                {currentRow.photo1 ? (
-                  <img
-                    src={currentRow.photo1}
-                    alt={`${currentRow.varietyName} - 图片1`}
-                    style={{
-                      maxWidth: '45%',
-                      maxHeight: '400px',
-                      objectFit: 'contain'
-                    }}
-                    onError={(e) => {
-                      console.error('图片1加载失败:', currentRow.photo1);
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                ) : null}
-                {currentRow.photo2 ? (
-                  <img
-                    src={currentRow.photo2}
-                    alt={`${currentRow.varietyName} - 图片2`}
-                    style={{
-                      maxWidth: '45%',
-                      maxHeight: '400px',
-                      objectFit: 'contain'
-                    }}
-                    onError={(e) => {
-                      console.error('图片2加载失败:', currentRow.photo2);
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                ) : null}
-                {!currentRow.photo1 && !currentRow.photo2 && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '200px',
-                    color: '#999',
-                    fontSize: '14px'
-                  }}>
-                    暂无图片
-                  </div>
-                )}
+                {(() => {
+                  const displayData: any = yearData || currentRow;
+                  const photo1 = displayData?.photo1;
+                  const photo2 = displayData?.photo2;
+                  const photo1Name = displayData?.photo1Name || '图片1';
+                  const photo2Name = displayData?.photo2Name || '图片2';
+                  
+                  return (
+                    <>
+                      {photo1 ? (
+                        <div style={{ textAlign: 'center' }}>
+                          <img
+                            src={photo1}
+                            alt={`${displayData?.varietyName} - ${photo1Name}`}
+                            style={{
+                              maxWidth: '78%',
+                              maxHeight: '700px',
+                              width: 'auto',
+                              height: 'auto',
+                              objectFit: 'contain'
+                            }}
+                            onError={(e) => {
+                              console.error('图片1加载失败:', photo1);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>{photo1Name}</div>
+                        </div>
+                      ) : null}
+                      {photo2 ? (
+                        <div style={{ textAlign: 'center' }}>
+                          <img
+                            src={photo2}
+                            alt={`${displayData?.varietyName} - ${photo2Name}`}
+                            style={{
+                              maxWidth: '78%',
+                              maxHeight: '700px',
+                              width: 'auto',
+                              height: 'auto',
+                              objectFit: 'contain'
+                            }}
+                            onError={(e) => {
+                              console.error('图片2加载失败:', photo2);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>{photo2Name}</div>
+                        </div>
+                      ) : null}
+                      {!photo1 && !photo2 && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '200px',
+                          color: '#999',
+                          fontSize: '14px'
+                        }}>
+                          暂无图片
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <ProDescriptions<API.RuleListItem>
               column={2}
-              title={currentRow?.varietyName}
+              title={selectedYear ? `${currentRow?.varietyName} (${selectedYear}年)` : currentRow?.varietyName}
               request={async () => ({
-                data: currentRow || {},
+                data: yearData || currentRow || {},
               })}
               params={{
                 id: currentRow?.varietyName,
+                year: selectedYear,
               }}
               columns={[
                 {
@@ -1943,7 +2137,15 @@ const TableList: React.FC = () => {
             关闭
           </Button>,
           <Button
-            key="export"
+            key="export-pending"
+            type="primary"
+            icon={<ExportOutlined />}
+            onClick={handleExportPendingHybridization}
+          >
+            导出待配组列表
+          </Button>,
+          <Button
+            key="export-hybrid"
             type="primary"
             icon={<ExportOutlined />}
             onClick={handleExportHybridization}
@@ -2007,7 +2209,7 @@ const TableList: React.FC = () => {
                         onClick={() => {
                           // 跳转到杂交记录页面，仅查看当前播种编号对应的性状
                           const sowingNumber = record.id; // 此处 id 即播种编号
-                          navigate(`/germplasm/hybrid-record?sowingNumber=${encodeURIComponent(sowingNumber)}`);
+                          navigate(`/Hybrid/HybridRecord?sowingNumber=${encodeURIComponent(sowingNumber)}`);
                         }}
                       >查看杂交性状</Button>
                     </Space>
@@ -2026,6 +2228,63 @@ const TableList: React.FC = () => {
                 onShowSizeChange: (_current, size) => setHybridListPageSize(size),
               }}
               style={{ marginBottom: '24px' }}
+            />
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: '8px', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, color: '#1890ff' }}>待配组列表</h3>
+              <Button
+                icon={<ExportOutlined />}
+                type="primary"
+                onClick={handleExportPendingHybridization}
+                disabled={!pendingHybridList.length}
+              >
+                导出待配组列表
+              </Button>
+            </div>
+            <Table
+              columns={[
+                {
+                  title: '编号',
+                  dataIndex: 'id',
+                },
+                {
+                  title: '母本编号',
+                  dataIndex: 'femaleNumber',
+                },
+                {
+                  title: '父本编号',
+                  dataIndex: 'maleNumber',
+                },
+                {
+                  title: '母本名称',
+                  dataIndex: 'femaleName',
+                },
+                {
+                  title: '父本名称',
+                  dataIndex: 'maleName',
+                },
+                {
+                  title: '杂交组合',
+                  dataIndex: 'hybridization',
+                },
+                {
+                  title: '配组日期',
+                  dataIndex: 'date',
+                },
+              ]}
+              dataSource={pendingHybridList}
+              rowKey="id"
+              pagination={{
+                pageSize: summaryListPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ['5', '10', '20', '50'],
+                showQuickJumper: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (_page, pageSize) => setSummaryListPageSize(pageSize),
+                onShowSizeChange: (_current, size) => setSummaryListPageSize(size),
+              }}
             />
           </div>
 
